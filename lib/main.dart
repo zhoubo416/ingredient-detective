@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'pages/splash_page.dart';
 
-void main() {
+void main() async {
+  // 加载环境变量文件
+  await dotenv.load(fileName: "assets/.env");
+  
   runApp(const MyApp());
 }
 

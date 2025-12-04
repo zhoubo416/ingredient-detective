@@ -1,10 +1,11 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../models/ingredient_analysis.dart';
+import '../config/api_config.dart';
 
 class AIService {
   // DeepSeek API配置
-  static const String _apiKey = 'sk-d3d05ed3d1944cac9ca1a95d7902cbd3';
+  static String get _apiKey => ApiConfig.deepseekApiKey;
   static const String _baseURL = 'https://api.deepseek.com/v1';
   static const String _model = 'deepseek-chat';
 
