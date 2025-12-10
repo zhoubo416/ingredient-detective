@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:async'; // 添加TimeoutException支持
 import 'package:http/http.dart' as http;
 import '../models/ingredient_analysis.dart';
 import '../config/api_config.dart';
@@ -8,25 +9,84 @@ class AIService {
   static String get _apiKey => ApiConfig.deepseekApiKey;
   static const String _baseURL = 'https://api.deepseek.com/v1';
   static const String _model = 'deepseek-chat';
+  
+  // 性能优化配置
+  static const Duration _timeoutDuration = Duration(seconds: 30);
+  static const int _maxRetries = 2;
+  static const Duration _retryDelay = Duration(seconds: 1);
+  
+  // 缓存机制 - 存储最近的分析结果
+  static final Map<String, FoodAnalysisResult> _cache = {};
+  static const int _maxCacheSize = 50;
 
   static Future<FoodAnalysisResult> analyzeIngredients(
     List<String> ingredients, 
     String productName
   ) async {
+    // 生成缓存键 - 基于配料和产品名称
+    final cacheKey = _generateCacheKey(ingredients, productName);
+    
+    // 检查缓存
+    if (_cache.containsKey(cacheKey)) {
+      print('从缓存中获取分析结果');
+      return _cache[cacheKey]!;
+    }
+    
     try {
-      final response = await _callDeepSeekAPI(ingredients, productName);
+      // 使用重试机制调用API
+      final response = await _callDeepSeekAPIWithRetry(ingredients, productName);
       
       if (response != null && response.isNotEmpty) {
-        return _parseAIResponse(response, ingredients, productName);
+        final result = _parseAIResponse(response, ingredients, productName);
+        
+        // 缓存结果
+        _addToCache(cacheKey, result);
+        
+        return result;
       } else {
         // 如果API调用失败，使用模拟数据作为备用
-        return _getMockAnalysisResult(ingredients, productName);
+        final mockResult = _getMockAnalysisResult(ingredients, productName);
+        _addToCache(cacheKey, mockResult);
+        return mockResult;
       }
     } catch (e) {
       print('DeepSeek API调用失败: $e');
       // 返回模拟数据作为备用
-      return _getMockAnalysisResult(ingredients, productName);
+      final mockResult = _getMockAnalysisResult(ingredients, productName);
+      _addToCache(cacheKey, mockResult);
+      return mockResult;
     }
+  }
+
+  static Future<String?> _callDeepSeekAPIWithRetry(List<String> ingredients, String productName) async {
+    for (int attempt = 0; attempt <= _maxRetries; attempt++) {
+      try {
+        print('开始调用DeepSeek API分析配料... (尝试 ${attempt + 1}/${_maxRetries + 1})');
+        print('配料列表: $ingredients');
+        print('产品名称: $productName');
+        
+        final response = await _callDeepSeekAPI(ingredients, productName);
+        
+        if (response != null) {
+          print('DeepSeek API调用成功');
+          return response;
+        }
+        
+        if (attempt < _maxRetries) {
+          print('DeepSeek API调用失败，${_retryDelay.inSeconds}秒后重试...');
+          await Future.delayed(_retryDelay);
+        }
+      } catch (e) {
+        print('DeepSeek API调用异常 (尝试 ${attempt + 1}): $e');
+        if (attempt < _maxRetries) {
+          print('${_retryDelay.inSeconds}秒后重试...');
+          await Future.delayed(_retryDelay);
+        }
+      }
+    }
+    
+    print('DeepSeek API调用失败，已达到最大重试次数');
+    return null;
   }
 
   static Future<String?> _callDeepSeekAPI(List<String> ingredients, String productName) async {
@@ -35,79 +95,31 @@ class AIService {
       print('配料列表: $ingredients');
       print('产品名称: $productName');
       
+      // 简化的系统提示词，减少请求体大小
+      final systemPrompt = '''你是一个食品营养分析师。请分析配料并返回JSON格式结果，包含：
+{
+  "foodName": "食品类型",
+  "healthScore": 数值(0-10),
+  "compliance": {"status": "合规/不合规/待确认", "description": "说明", "issues": []},
+  "processing": {"level": "加工度", "description": "说明", "score": 数值},
+  "claims": {"detectedClaims": [], "supportedClaims": [], "questionableClaims": [], "assessment": "评估"},
+  "overallAssessment": "总体评价",
+  "recommendations": "建议",
+  "ingredients": [{"ingredientName": "名称", "function": "作用", "nutritionalValue": "营养", "complianceStatus": "合规性", "processingLevel": "加工度", "remarks": "备注"}]
+}''';
+
+      final userPrompt = '''分析产品"$productName"的配料：${ingredients.join(", ")}
+
+请从合规性、加工度、宣称三个维度分析，返回JSON格式。''';
+
       final requestBody = jsonEncode({
         'model': _model,
         'messages': [
-          {
-            'role': 'system',
-            'content': '''你是一个专业的食品营养分析师和食品安全专家。请根据提供的配料列表进行结构化分析。
-
-请以JSON格式返回分析结果，包含以下字段：
-{
-  "foodName": "食品类型名称",
-  "healthScore": 数值(0-10),
-  "compliance": {
-    "status": "合规/不合规/待确认",
-    "description": "合规性详细说明",
-    "issues": ["具体问题1", "具体问题2"]
-  },
-  "processing": {
-    "level": "未加工/轻度加工/中度加工/高度加工/超加工",
-    "description": "加工度详细说明",
-    "score": 数值(1-5)
-  },
-  "claims": {
-    "detectedClaims": ["检测到的宣称1", "宣称2"],
-    "supportedClaims": ["有依据的宣称"],
-    "questionableClaims": ["可疑的宣称"],
-    "assessment": "宣称评估说明"
-  },
-  "overallAssessment": "总体评价文字",
-  "recommendations": "建议文字",
-  "ingredients": [
-    {
-      "ingredientName": "配料名称",
-      "function": "主要作用",
-      "nutritionalValue": "营养价值",
-      "complianceStatus": "合规性状态",
-      "processingLevel": "加工度等级",
-      "remarks": "备注"
-    }
-  ]
-}'''
-          },
-          {
-            'role': 'user',
-            'content': '''请分析产品"$productName"的配料：${ingredients.join(", ")}
-
-请从以下三个维度进行结构化分析：
-
-1. 合规性分析：
-   - 检查配料是否符合食品安全法规
-   - 识别可能的违规成分
-   - 评估标签标识的准确性
-
-2. 加工度分析：
-   - 根据NOVA分类系统评估加工程度
-   - 分析添加剂和人工成分的使用
-   - 评估食品的天然程度
-
-3. 特定宣称分析：
-   - 识别产品可能的健康宣称
-   - 评估宣称的科学依据
-   - 指出可能的误导性表述
-
-请提供：
-- 每种配料的详细分析
-- 整体健康评分（0-10分，10分最健康）
-- 结构化的评估报告
-- 针对性的消费建议
-
-请确保返回标准的JSON格式。'''
-          }
+          {'role': 'system', 'content': systemPrompt},
+          {'role': 'user', 'content': userPrompt}
         ],
         'temperature': 0.3,
-        'max_tokens': 4000,
+        'max_tokens': 2000, // 减少token数量
       });
       
       print('DeepSeek API请求体: $requestBody');
@@ -119,7 +131,10 @@ class AIService {
           'Authorization': 'Bearer $_apiKey',
         },
         body: requestBody,
-      );
+      ).timeout(_timeoutDuration, onTimeout: () {
+        print('DeepSeek API请求超时 (${_timeoutDuration.inSeconds}秒)');
+        throw TimeoutException('DeepSeek API请求超时');
+      });
 
       print('DeepSeek API响应状态码: ${response.statusCode}');
       print('DeepSeek API响应内容: ${response.body}');
@@ -552,6 +567,36 @@ class AIService {
     if (detected.isEmpty) {
       return '未检测到特定健康或营养宣称';
     }
-    return '检测到${detected.length}项宣称，建议核实相关依据';
+    
+    final supported = _getMockSupportedClaims(productName);
+    final questionable = _getMockQuestionableClaims(productName);
+    
+    if (supported.isNotEmpty && questionable.isEmpty) {
+      return '检测到的宣称均有科学依据';
+    } else if (supported.isEmpty && questionable.isNotEmpty) {
+      return '检测到的宣称缺乏充分科学依据';
+    } else {
+      return '宣称的科学依据需要进一步评估';
+    }
+  }
+
+  // 缓存相关辅助方法
+  static String _generateCacheKey(List<String> ingredients, String productName) {
+    final keyContent = '${ingredients.join(',')}:$productName';
+    return keyContent.hashCode.toString();
+  }
+
+  static void _addToCache(String key, FoodAnalysisResult result) {
+    // 如果缓存超过最大大小，移除最旧的条目
+    if (_cache.length >= _maxCacheSize) {
+      final firstKey = _cache.keys.first;
+      _cache.remove(firstKey);
+    }
+    _cache[key] = result;
+  }
+
+  // 清空缓存的方法（可用于测试或内存管理）
+  static void clearCache() {
+    _cache.clear();
   }
 }

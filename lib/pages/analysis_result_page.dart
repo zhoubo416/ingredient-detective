@@ -4,8 +4,9 @@ import '../services/database_service.dart';
 
 class AnalysisResultPage extends StatefulWidget {
   final FoodAnalysisResult analysisResult;
+  final bool isFromHistory;
 
-  const AnalysisResultPage({super.key, required this.analysisResult});
+  const AnalysisResultPage({super.key, required this.analysisResult, this.isFromHistory = false});
 
   @override
   State<AnalysisResultPage> createState() => _AnalysisResultPageState();
@@ -17,7 +18,16 @@ class _AnalysisResultPageState extends State<AnalysisResultPage> {
   @override
   void initState() {
     super.initState();
-    _saveToHistory();
+    
+    // 如果是从历史页面进入的，说明记录已经保存过，不需要重复保存
+    if (!widget.isFromHistory) {
+      _saveToHistory();
+    } else {
+      // 从历史页面进入，标记为已保存
+      setState(() {
+        _isSaved = true;
+      });
+    }
   }
 
   Future<void> _saveToHistory() async {
@@ -52,6 +62,7 @@ class _AnalysisResultPageState extends State<AnalysisResultPage> {
     }
 
     return Container(
+      width: double.infinity,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: color.withAlpha(25),
@@ -59,6 +70,7 @@ class _AnalysisResultPageState extends State<AnalysisResultPage> {
         border: Border.all(color: color),
       ),
       child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Text(
             '健康评分',
@@ -167,13 +179,16 @@ class _AnalysisResultPageState extends State<AnalysisResultPage> {
           children: [
             // 食品名称和标准
             Card(
-              child: Padding(
+              child: Container(
+                width: double.infinity,
                 padding: const EdgeInsets.all(16),
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
                     Text(
                       widget.analysisResult.foodName,
+                      textAlign: TextAlign.center,
                       style: const TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.bold,
@@ -182,10 +197,12 @@ class _AnalysisResultPageState extends State<AnalysisResultPage> {
                     const SizedBox(height: 8),
                     Text(
                       '配料数量: ${widget.analysisResult.ingredients.length}种',
+                      textAlign: TextAlign.center,
                       style: TextStyle(color: Colors.grey[600]),
                     ),
                     Text(
                       '分析时间: ${widget.analysisResult.analysisTime.toString().substring(0, 16)}',
+                      textAlign: TextAlign.center,
                       style: TextStyle(color: Colors.grey[600]),
                     ),
                   ],
@@ -459,9 +476,10 @@ class _AnalysisResultPageState extends State<AnalysisResultPage> {
               ...claims.detectedClaims.map((claim) => Padding(
                 padding: const EdgeInsets.only(left: 16, top: 4),
                 child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const Text('• '),
-                    Text(claim),
+                    Expanded(child: Text(claim)),
                   ],
                 ),
               )),
@@ -475,10 +493,11 @@ class _AnalysisResultPageState extends State<AnalysisResultPage> {
               ...claims.supportedClaims.map((claim) => Padding(
                 padding: const EdgeInsets.only(left: 16, top: 4),
                 child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Icon(Icons.check, color: Colors.green, size: 16),
                     const SizedBox(width: 4),
-                    Text(claim, style: const TextStyle(color: Colors.green)),
+                    Expanded(child: Text(claim, style: const TextStyle(color: Colors.green))),
                   ],
                 ),
               )),
@@ -492,10 +511,11 @@ class _AnalysisResultPageState extends State<AnalysisResultPage> {
               ...claims.questionableClaims.map((claim) => Padding(
                 padding: const EdgeInsets.only(left: 16, top: 4),
                 child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Icon(Icons.warning, color: Colors.orange, size: 16),
                     const SizedBox(width: 4),
-                    Text(claim, style: const TextStyle(color: Colors.orange)),
+                    Expanded(child: Text(claim, style: const TextStyle(color: Colors.orange))),
                   ],
                 ),
               )),

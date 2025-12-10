@@ -35,14 +35,41 @@ class _HistoryPageState extends State<HistoryPage> {
     }
   }
 
-  Future<void> _deleteItem(int index) async {
+  Future<void> _deleteItem(FoodAnalysisResult result) async {
+    // 先立即从UI中移除项目
+    final int originalIndex = _history.indexOf(result);
+    if (originalIndex == -1) return;
+    
+    setState(() {
+      _history.remove(result);
+    });
+    
     try {
       final dbService = DatabaseService();
-      // 这里简化处理，实际应该根据ID删除
-      await dbService.deleteAnalysisResult(index + 1);
-      await _loadHistory();
+      // 使用数据库记录的ID删除（查找对应的ID）
+      final history = await dbService.getAnalysisHistory();
+      final int dbIndex = history.indexWhere((item) => 
+          item.analysisTime == result.analysisTime && 
+          item.foodName == result.foodName);
+      
+      if (dbIndex != -1) {
+        await dbService.deleteAnalysisResult(dbIndex + 1);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('删除成功')),
+        );
+      } else {
+        throw Exception('未找到对应的数据库记录');
+      }
     } catch (e) {
-      // 删除失败
+      // 删除失败，恢复项目
+      setState(() {
+        if (!_history.contains(result)) {
+          _history.insert(originalIndex, result);
+        }
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('删除失败: $e')),
+      );
     }
   }
 
@@ -75,7 +102,7 @@ class _HistoryPageState extends State<HistoryPage> {
           ),
         );
       },
-      onDismissed: (direction) => _deleteItem(index),
+      onDismissed: (direction) => _deleteItem(result),
       child: Card(
         margin: const EdgeInsets.symmetric(vertical: 5, horizontal: 10),
         child: ListTile(
@@ -102,7 +129,7 @@ class _HistoryPageState extends State<HistoryPage> {
             Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (context) => AnalysisResultPage(analysisResult: result),
+                builder: (context) => AnalysisResultPage(analysisResult: result, isFromHistory: true),
               ),
             );
           },
