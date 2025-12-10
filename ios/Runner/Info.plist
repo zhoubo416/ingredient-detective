@@ -68,5 +68,36 @@
 		<string>camera-flash</string>
 		<string>still-camera</string>
 	</array>
+	
+	<!-- 隐私清单文件 -->
+	<key>NSPrivacyManifestFile</key>
+	<string>PrivacyInfo.xcprivacy</string>
+	
+	<!-- 网络权限声明 -->
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsArbitraryLoads</key>
+		<false/>
+		<key>NSExceptionDomains</key>
+		<dict>
+			<key>api.deepseek.com</key>
+			<dict>
+				<key>NSExceptionAllowsInsecureHTTPLoads</key>
+				<false/>
+				<key>NSIncludesSubdomains</key>
+				<true/>
+				<key>NSRequiresCertificateTransparency</key>
+				<false/>
+			</dict>
+		</dict>
+	</dict>
+	
+	<!-- 应用使用声明 -->
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
+	
+	<!-- 应用商店信息 -->
+	<key>NSHumanReadableCopyright</key>
+	<string>Copyright © 2024 配料侦探. All rights reserved.</string>
 </dict>
 </plist>
