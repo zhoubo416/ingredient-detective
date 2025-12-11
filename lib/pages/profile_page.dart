@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'privacy_policy_page.dart';
+import '../services/database_service.dart';
+import '../models/ingredient_analysis.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -12,11 +15,15 @@ class _ProfilePageState extends State<ProfilePage> {
   String _userName = '用户';
   String _defaultStandard = '中国标准';
   bool _autoSaveHistory = true;
+  int _analysisCount = 0;
+  int _healthyFoodCount = 0;
+  int _attentionFoodCount = 0;
 
   @override
   void initState() {
     super.initState();
     _loadSettings();
+    _loadStatistics();
   }
 
   Future<void> _loadSettings() async {
@@ -33,6 +40,27 @@ class _ProfilePageState extends State<ProfilePage> {
     await prefs.setString('userName', _userName);
     await prefs.setString('defaultStandard', _defaultStandard);
     await prefs.setBool('autoSaveHistory', _autoSaveHistory);
+  }
+
+  Future<void> _loadStatistics() async {
+    try {
+      final databaseService = DatabaseService();
+      final analysisHistory = await databaseService.getAnalysisHistory();
+      
+      // 计算统计数据
+      int analysisCount = analysisHistory.length;
+      int healthyFoodCount = analysisHistory.where((result) => result.healthScore >= 7.0).length;
+      int attentionFoodCount = analysisHistory.where((result) => result.healthScore < 5.0).length;
+      
+      setState(() {
+        _analysisCount = analysisCount;
+        _healthyFoodCount = healthyFoodCount;
+        _attentionFoodCount = attentionFoodCount;
+      });
+    } catch (e) {
+      print('加载统计数据错误: $e');
+      // 如果出错，保持默认值0
+    }
   }
 
   void _showNameEditDialog() {
@@ -143,29 +171,7 @@ class _ProfilePageState extends State<ProfilePage> {
                         subtitle: '修改昵称和基本信息',
                         trailing: const Icon(Icons.chevron_right),
                         onTap: _showNameEditDialog,
-                      ),
-                      const Divider(height: 1),
-                      _buildSettingItem(
-                        icon: Icons.flag,
-                        title: '默认分析标准',
-                        subtitle: '设置默认使用的食品标准',
-                        trailing: DropdownButton<String>(
-                          value: _defaultStandard,
-                          items: ['中国标准', '美国标准', '欧盟标准', '日本标准']
-                              .map((standard) => DropdownMenuItem<String>(
-                                    value: standard,
-                                    child: Text(standard),
-                                  ))
-                              .toList(),
-                          onChanged: (value) {
-                            setState(() {
-                              _defaultStandard = value!;
-                            });
-                            _saveSettings();
-                          },
-                        ),
-                        onTap: null,
-                      ),
+                      )
                     ],
                   ),
                 ),
@@ -177,27 +183,24 @@ class _ProfilePageState extends State<ProfilePage> {
                   child: Column(
                     children: [
                       _buildSettingItem(
-                        icon: Icons.save,
-                        title: '自动保存历史记录',
-                        subtitle: '分析完成后自动保存到历史记录',
-                        trailing: Switch(
-                          value: _autoSaveHistory,
-                          onChanged: (value) {
-                            setState(() {
-                              _autoSaveHistory = value;
-                            });
-                            _saveSettings();
-                          },
-                        ),
-                        onTap: null,
-                      ),
-                      const Divider(height: 1),
-                      _buildSettingItem(
                         icon: Icons.help,
                         title: '使用帮助',
                         subtitle: '查看应用使用说明',
                         trailing: const Icon(Icons.chevron_right),
                         onTap: () => _showHelpDialog(),
+                      ),
+                      const Divider(height: 1),
+                      _buildSettingItem(
+                        icon: Icons.privacy_tip,
+                        title: '隐私政策',
+                        subtitle: '查看应用隐私政策',
+                        trailing: const Icon(Icons.chevron_right),
+                        onTap: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const PrivacyPolicyPage(),
+                          ),
+                        ),
                       ),
                       const Divider(height: 1),
                       _buildSettingItem(
@@ -231,9 +234,9 @@ class _ProfilePageState extends State<ProfilePage> {
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceAround,
                           children: [
-                            _buildStatItem('分析次数', '0'),
-                            _buildStatItem('健康食品', '0'),
-                            _buildStatItem('关注食品', '0'),
+                            _buildStatItem('分析次数', _analysisCount.toString()),
+                            _buildStatItem('健康食品', _healthyFoodCount.toString()),
+                            _buildStatItem('关注食品', _attentionFoodCount.toString()),
                           ],
                         ),
                       ],
@@ -278,13 +281,11 @@ class _ProfilePageState extends State<ProfilePage> {
             children: const [
               Text('1. 点击"分析"页面拍照或选择图片'),
               SizedBox(height: 8),
-              Text('2. 选择分析标准（中国/美国/欧盟/日本）'),
+              Text('2. 系统自动识别配料并分析营养价值'),
               SizedBox(height: 8),
-              Text('3. 系统自动识别配料并分析营养价值'),
+              Text('3. 查看分析结果和健康评分'),
               SizedBox(height: 8),
-              Text('4. 查看分析结果和健康评分'),
-              SizedBox(height: 8),
-              Text('5. 历史记录可在"历史"页面查看'),
+              Text('4. 历史记录可在"历史"页面查看'),
             ],
           ),
         ),
@@ -313,7 +314,7 @@ class _ProfilePageState extends State<ProfilePage> {
             SizedBox(height: 8),
             Text('功能: 食品配料分析工具'),
             SizedBox(height: 8),
-            Text('技术支持: support@ingredient-detective.com'),
+            Text('技术支持: ingredient2025@126.com'),
           ],
         ),
         actions: [
