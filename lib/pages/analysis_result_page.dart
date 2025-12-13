@@ -1,6 +1,32 @@
 import 'package:flutter/material.dart';
 import '../models/ingredient_analysis.dart';
 import '../services/database_service.dart';
+import '../services/usage_manager.dart';
+import '../services/subscription_manager.dart';
+import 'paywall_page.dart';
+
+// 创建全局事件通知器
+class UsageUpdateNotifier {
+  static final UsageUpdateNotifier _instance = UsageUpdateNotifier._internal();
+  factory UsageUpdateNotifier() => _instance;
+  UsageUpdateNotifier._internal();
+
+  final List<VoidCallback> _listeners = [];
+
+  void addListener(VoidCallback listener) {
+    _listeners.add(listener);
+  }
+
+  void removeListener(VoidCallback listener) {
+    _listeners.remove(listener);
+  }
+
+  void notifyListeners() {
+    for (final listener in _listeners) {
+      listener();
+    }
+  }
+}
 
 class AnalysisResultPage extends StatefulWidget {
   final FoodAnalysisResult analysisResult;
@@ -14,10 +40,20 @@ class AnalysisResultPage extends StatefulWidget {
 
 class _AnalysisResultPageState extends State<AnalysisResultPage> {
   bool _isSaved = false;
+  late UsageManager _usageManager;
+  late SubscriptionManager _subscriptionManager;
+  int _remainingUses = 0;
+  bool _isProUser = false;
 
   @override
   void initState() {
     super.initState();
+    
+    _usageManager = UsageManager();
+    _subscriptionManager = SubscriptionManager();
+    
+    // 初始化使用次数和订阅状态
+    _loadUsageAndSubscriptionStatus();
     
     // 如果是从历史页面进入的，说明记录已经保存过，不需要重复保存
     if (!widget.isFromHistory) {
@@ -30,6 +66,167 @@ class _AnalysisResultPageState extends State<AnalysisResultPage> {
     }
   }
 
+  Future<void> _loadUsageAndSubscriptionStatus() async {
+    try {
+      // 等待使用次数管理器初始化完成
+      await _usageManager.canUseAsync();
+      
+      // 获取剩余使用次数（异步方法）
+      final canUse = await _usageManager.canUseAsync();
+      final todayUsage = _usageManager.dailyUsageCount;
+      final remaining = await _usageManager.remainingUsageCount;
+      
+      // 检查订阅状态
+      final isPro = _subscriptionManager.isProUser;
+      
+      setState(() {
+        _remainingUses = remaining > 0 ? remaining : 0;
+        _isProUser = isPro;
+      });
+    } catch (e) {
+      // 如果获取失败，设置默认值
+      setState(() {
+        _remainingUses = 0;
+        _isProUser = false;
+      });
+    }
+  }
+
+  void _navigateToSubscriptionPage() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const PaywallPage()),
+    );
+  }
+
+  Widget _buildUsageAndSubscriptionWidget() {
+    // 如果是订阅用户，不显示使用次数限制信息
+    if (_isProUser) {
+      return Container();
+    }
+
+    return Container(
+      margin: const EdgeInsets.only(top: 20, bottom: 40),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.blue[50],
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.blue[200]!),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.info_outline, color: Colors.blue[700], size: 20),
+              const SizedBox(width: 8),
+              Text(
+                '今日剩余使用次数',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.blue[700],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          
+          // 剩余使用次数显示
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                '剩余次数: $_remainingUses / ${UsageManager.maxDailyUsage}',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: _remainingUses > 0 ? Colors.green[700] : Colors.red[700],
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                decoration: BoxDecoration(
+                  color: _remainingUses > 0 ? Colors.green[100] : Colors.red[100],
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Text(
+                  _remainingUses > 0 ? '可继续使用' : '次数已用完',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: _remainingUses > 0 ? Colors.green[700] : Colors.red[700],
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          
+          const SizedBox(height: 16),
+          
+          // 订阅引导
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.orange[50],
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.orange[200]!),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(Icons.star, color: Colors.orange[700], size: 16),
+                    const SizedBox(width: 8),
+                    Text(
+                      '升级到专业版',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.orange[700],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  '订阅专业版即可享受无限次使用，解锁所有高级功能',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.orange[700],
+                  ),
+                ),
+                const SizedBox(height: 8),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: _navigateToSubscriptionPage,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.orange[600],
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                    ),
+                    child: const Text(
+                      '立即订阅',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _saveToHistory() async {
     try {
       final dbService = DatabaseService();
@@ -37,6 +234,9 @@ class _AnalysisResultPageState extends State<AnalysisResultPage> {
       setState(() {
         _isSaved = true;
       });
+      
+      // 保存完成后通知首页刷新数据
+      UsageUpdateNotifier().notifyListeners();
     } catch (e) {
       // 保存失败不影响页面展示
     }
@@ -282,7 +482,12 @@ class _AnalysisResultPageState extends State<AnalysisResultPage> {
               ),
             ),
             
-            const SizedBox(height: 40),
+            const SizedBox(height: 20),
+            
+            // 今日剩余使用次数和订阅引导
+            _buildUsageAndSubscriptionWidget(),
+            
+            const SizedBox(height: 20),
           ],
         ),
       ),

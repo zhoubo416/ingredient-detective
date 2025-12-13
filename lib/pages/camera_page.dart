@@ -7,8 +7,12 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 
 import '../services/ocr_service.dart';
 import '../services/ai_service.dart';
+import '../services/usage_manager.dart';
+import '../services/revenuecat_service.dart';
+import '../services/subscription_manager.dart';
 import '../widgets/permission_guide_dialog.dart';
 import 'analysis_result_page.dart';
+import 'paywall_page.dart';
 
 class CameraPage extends StatefulWidget {
   const CameraPage({super.key});
@@ -23,6 +27,33 @@ class _CameraPageState extends State<CameraPage> {
   // 移除标准选择相关变量
 
   Future<void> _pickImage(ImageSource source) async {
+    // 首先检查用户是否已订阅
+    final subscriptionManager = SubscriptionManager();
+    final hasProAccess = subscriptionManager.isProUser;
+    
+    if (hasProAccess) {
+      print('用户已订阅，跳过使用次数限制');
+      // 订阅用户不受限制
+    } else {
+      // 检查使用次数限制
+      final usageManager = UsageManager();
+      final canUse = await usageManager.canUseAsync();
+      
+      // 调试信息
+      print('使用次数检查:');
+      print('  当前使用次数: ${usageManager.dailyUsageCount}');
+      print('  最大允许次数: ${UsageManager.maxDailyUsage}');
+      print('  是否超过限制: ${usageManager.isUsageLimitReached}');
+      print('  是否允许使用: $canUse');
+      
+      if (!canUse) {
+        // 超过使用次数限制，显示订阅提示
+        print('使用次数已用完，显示订阅提示');
+        _showUsageLimitDialog();
+        return;
+      }
+    }
+    
     // 在Web和桌面应用中，跳过权限检查
     if (kIsWeb || Platform.isMacOS || Platform.isWindows || Platform.isLinux) {
       // Web和桌面应用通常不需要权限检查
@@ -129,6 +160,19 @@ class _CameraPageState extends State<CameraPage> {
       // 使用AI分析配料
       final result = await AIService.analyzeIngredients(ingredients, foodName);
       
+      // 检查用户是否已订阅，只有非订阅用户才记录使用次数
+      final subscriptionManager = SubscriptionManager();
+      final hasProAccess = subscriptionManager.isProUser;
+      
+      if (!hasProAccess) {
+        // 增加使用次数
+        final usageManager = UsageManager();
+        await usageManager.recordUsage();
+        print('记录使用次数，当前使用次数: ${usageManager.dailyUsageCount}');
+      } else {
+        print('订阅用户，不记录使用次数');
+      }
+      
       // 跳转到结果页面
       if (!mounted) return;
       
@@ -181,6 +225,33 @@ class _CameraPageState extends State<CameraPage> {
           TextButton(
             onPressed: () => Navigator.pop(context),
             child: const Text('确定'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showUsageLimitDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: const Text('使用次数已用完'),
+        content: const Text('您今天的使用次数已用完。订阅服务可享受无限次使用。'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('取消'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const PaywallPage()),
+              );
+            },
+            child: const Text('订阅'),
           ),
         ],
       ),
