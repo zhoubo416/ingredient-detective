@@ -11,7 +11,7 @@ class AIService {
   static const String _model = 'deepseek-chat';
   
   // 性能优化配置
-  static const Duration _timeoutDuration = Duration(seconds: 30);
+  static const Duration _timeoutDuration = Duration(seconds: 90);
   static const int _maxRetries = 2;
   static const Duration _retryDelay = Duration(seconds: 1);
   
