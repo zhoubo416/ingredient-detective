@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import '../services/database_service.dart';
-import '../models/ingredient_analysis.dart';
+import '../models/analysis_history_item.dart';
+import '../services/backend_api_service.dart';
 import 'analysis_result_page.dart';
 
 class HistoryPage extends StatefulWidget {
@@ -11,7 +11,8 @@ class HistoryPage extends StatefulWidget {
 }
 
 class _HistoryPageState extends State<HistoryPage> {
-  List<FoodAnalysisResult> _history = [];
+  final BackendApiService _backendApiService = BackendApiService();
+  List<AnalysisHistoryItem> _history = [];
   bool _isLoading = true;
 
   @override
@@ -22,50 +23,40 @@ class _HistoryPageState extends State<HistoryPage> {
 
   Future<void> _loadHistory() async {
     try {
-      final dbService = DatabaseService();
-      final history = await dbService.getAnalysisHistory();
+      final history = await _backendApiService.fetchHistory();
       setState(() {
         _history = history;
         _isLoading = false;
       });
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _isLoading = false;
       });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('加载历史失败: $e')),
+      );
     }
   }
 
-  Future<void> _deleteItem(FoodAnalysisResult result) async {
-    // 先立即从UI中移除项目
-    final int originalIndex = _history.indexOf(result);
+  Future<void> _deleteItem(AnalysisHistoryItem item) async {
+    final originalIndex = _history.indexOf(item);
     if (originalIndex == -1) return;
-    
+
     setState(() {
-      _history.remove(result);
+      _history.remove(item);
     });
-    
+
     try {
-      final dbService = DatabaseService();
-      // 使用数据库记录的ID删除（查找对应的ID）
-      final history = await dbService.getAnalysisHistory();
-      final int dbIndex = history.indexWhere((item) => 
-          item.analysisTime == result.analysisTime && 
-          item.foodName == result.foodName);
-      
-      if (dbIndex != -1) {
-        await dbService.deleteAnalysisResult(dbIndex + 1);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('删除成功')),
-        );
-      } else {
-        throw Exception('未找到对应的数据库记录');
-      }
+      await _backendApiService.deleteHistoryItem(item.id);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('删除成功')),
+      );
     } catch (e) {
-      // 删除失败，恢复项目
+      if (!mounted) return;
       setState(() {
-        if (!_history.contains(result)) {
-          _history.insert(originalIndex, result);
-        }
+        _history.insert(originalIndex, item);
       });
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('删除失败: $e')),
@@ -73,9 +64,9 @@ class _HistoryPageState extends State<HistoryPage> {
     }
   }
 
-  Widget _buildHistoryItem(FoodAnalysisResult result, int index) {
+  Widget _buildHistoryItem(AnalysisHistoryItem item) {
     return Dismissible(
-      key: Key(result.analysisTime.toString()),
+      key: Key(item.id),
       direction: DismissDirection.endToStart,
       background: Container(
         color: Colors.red,
@@ -84,44 +75,45 @@ class _HistoryPageState extends State<HistoryPage> {
         child: const Icon(Icons.delete, color: Colors.white),
       ),
       confirmDismiss: (direction) async {
-        return await showDialog(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: const Text('确认删除'),
-            content: const Text('确定要删除这条记录吗？'),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(false),
-                child: const Text('取消'),
+        return await showDialog<bool>(
+              context: context,
+              builder: (context) => AlertDialog(
+                title: const Text('确认删除'),
+                content: const Text('确定要删除这条记录吗？'),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(false),
+                    child: const Text('取消'),
+                  ),
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(true),
+                    child: const Text('删除'),
+                  ),
+                ],
               ),
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(true),
-                child: const Text('删除'),
-              ),
-            ],
-          ),
-        );
+            ) ??
+            false;
       },
-      onDismissed: (direction) => _deleteItem(result),
+      onDismissed: (direction) => _deleteItem(item),
       child: Card(
         margin: const EdgeInsets.symmetric(vertical: 5, horizontal: 10),
         child: ListTile(
           leading: CircleAvatar(
-            backgroundColor: _getScoreColor(result.healthScore),
+            backgroundColor: _getScoreColor(item.healthScore),
             child: Text(
-              result.healthScore.toStringAsFixed(0),
+              item.healthScore.toStringAsFixed(0),
               style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
             ),
           ),
           title: Text(
-            result.foodName,
+            item.foodName,
             style: const TextStyle(fontWeight: FontWeight.bold),
           ),
           subtitle: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('分析时间: ${_formatDateTime(result.analysisTime)}'),
-              Text('配料数量: ${result.ingredients.length}种'),
+              Text('分析时间: ${_formatDateTime(item.createdAt)}'),
+              Text('配料数量: ${item.result.ingredients.length}种'),
             ],
           ),
           trailing: const Icon(Icons.chevron_right),
@@ -129,7 +121,10 @@ class _HistoryPageState extends State<HistoryPage> {
             Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (context) => AnalysisResultPage(analysisResult: result, isFromHistory: true),
+                builder: (context) => AnalysisResultPage(
+                  analysisResult: item.result,
+                  isFromHistory: true,
+                ),
               ),
             );
           },
@@ -182,7 +177,7 @@ class _HistoryPageState extends State<HistoryPage> {
                   child: ListView.builder(
                     itemCount: _history.length,
                     itemBuilder: (context, index) {
-                      return _buildHistoryItem(_history[index], index);
+                      return _buildHistoryItem(_history[index]);
                     },
                   ),
                 ),

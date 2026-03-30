@@ -1,18 +1,12 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
 import 'package:loading_animation_widget/loading_animation_widget.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show TargetPlatform, defaultTargetPlatform, kIsWeb;
 
-import '../services/ocr_service.dart';
-import '../services/ai_service.dart';
-import '../services/usage_manager.dart';
-import '../services/revenuecat_service.dart';
-import '../services/subscription_manager.dart';
+import '../services/backend_api_service.dart';
 import '../widgets/permission_guide_dialog.dart';
 import 'analysis_result_page.dart';
-import 'paywall_page.dart';
 
 class CameraPage extends StatefulWidget {
   const CameraPage({super.key});
@@ -23,39 +17,16 @@ class CameraPage extends StatefulWidget {
 
 class _CameraPageState extends State<CameraPage> {
   final ImagePicker _imagePicker = ImagePicker();
+  final BackendApiService _backendApiService = BackendApiService();
   bool _isLoading = false;
-  // 移除标准选择相关变量
+  String? _lastFailedImageName;
 
   Future<void> _pickImage(ImageSource source) async {
-    // 首先检查用户是否已订阅
-    final subscriptionManager = SubscriptionManager();
-    final hasProAccess = subscriptionManager.isProUser;
-    
-    if (hasProAccess) {
-      print('用户已订阅，跳过使用次数限制');
-      // 订阅用户不受限制
-    } else {
-      // 检查使用次数限制
-      final usageManager = UsageManager();
-      final canUse = await usageManager.canUseAsync();
-      
-      // 调试信息
-      print('使用次数检查:');
-      print('  当前使用次数: ${usageManager.dailyUsageCount}');
-      print('  最大允许次数: ${UsageManager.maxDailyUsage}');
-      print('  是否超过限制: ${usageManager.isUsageLimitReached}');
-      print('  是否允许使用: $canUse');
-      
-      if (!canUse) {
-        // 超过使用次数限制，显示订阅提示
-        print('使用次数已用完，显示订阅提示');
-        _showUsageLimitDialog();
-        return;
-      }
-    }
-    
     // 在Web和桌面应用中，跳过权限检查
-    if (kIsWeb || Platform.isMacOS || Platform.isWindows || Platform.isLinux) {
+    if (kIsWeb ||
+        defaultTargetPlatform == TargetPlatform.macOS ||
+        defaultTargetPlatform == TargetPlatform.windows ||
+        defaultTargetPlatform == TargetPlatform.linux) {
       // Web和桌面应用通常不需要权限检查
       await _pickImageWithoutPermission(source);
     } else {
@@ -70,9 +41,6 @@ class _CameraPageState extends State<CameraPage> {
     });
 
     try {
-      // 直接尝试使用image_picker，让系统自动处理权限
-      print('直接尝试选择图片，让系统处理权限...');
-      
       final XFile? image = await _imagePicker.pickImage(
         source: source,
         maxWidth: 1920,
@@ -81,11 +49,9 @@ class _CameraPageState extends State<CameraPage> {
       );
       
       if (image != null) {
-        print('图片选择成功: ${image.path}');
-        await _processImage(image.path);
+        await _processImage(image);
       } else {
-        print('用户取消了图片选择或权限被拒绝');
-        // 如果用户取消或权限被拒绝，显示指导对话框
+        if (!mounted) return;
         showDialog(
           context: context,
           barrierDismissible: false,
@@ -95,8 +61,7 @@ class _CameraPageState extends State<CameraPage> {
         );
       }
     } catch (e) {
-      print('图片选择过程出错: $e');
-      // 如果出现权限错误，显示指导对话框
+      if (!mounted) return;
       showDialog(
         context: context,
         barrierDismissible: false,
@@ -117,10 +82,15 @@ class _CameraPageState extends State<CameraPage> {
     });
 
     try {
-      final XFile? image = await _imagePicker.pickImage(source: source);
+      final XFile? image = await _imagePicker.pickImage(
+        source: source,
+        maxWidth: 1920,
+        maxHeight: 1080,
+        imageQuality: 80,
+      );
       
       if (image != null) {
-        await _processImage(image.path);
+        await _processImage(image);
       }
     } catch (e) {
       _showErrorDialog('图片选择失败: $e');
@@ -131,48 +101,17 @@ class _CameraPageState extends State<CameraPage> {
     }
   }
 
-  
-
-  Future<void> _processImage(String imagePath) async {
+  Future<void> _processImage(XFile image) async {
     try {
-      // 使用OCR识别配料文字
-      dynamic imageFile;
-      if (kIsWeb) {
-        // Web环境下直接传递路径
-        imageFile = imagePath;
-      } else {
-        // 移动端使用File对象
-        imageFile = File(imagePath);
-      }
-      
-      final ingredients = await OCRService.extractTextFromImage(imageFile);
-      
-      // 根据配料生成食品名称
-      final foodName = _generateFoodName(ingredients);
-      
+      final result = await _backendApiService.analyzeImage(image);
+
       // 显示分析进度
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('正在分析$foodName...')),
+          SnackBar(content: Text('正在分析${result.foodName}...')),
         );
       }
-      
-      // 使用AI分析配料
-      final result = await AIService.analyzeIngredients(ingredients, foodName);
-      
-      // 检查用户是否已订阅，只有非订阅用户才记录使用次数
-      final subscriptionManager = SubscriptionManager();
-      final hasProAccess = subscriptionManager.isProUser;
-      
-      if (!hasProAccess) {
-        // 增加使用次数
-        final usageManager = UsageManager();
-        await usageManager.recordUsage();
-        print('记录使用次数，当前使用次数: ${usageManager.dailyUsageCount}');
-      } else {
-        print('订阅用户，不记录使用次数');
-      }
-      
+
       // 跳转到结果页面
       if (!mounted) return;
       
@@ -183,36 +122,139 @@ class _CameraPageState extends State<CameraPage> {
         ),
       );
     } catch (e) {
+      if (!mounted) return;
+      _lastFailedImageName = image.name;
+
+      if (e.toString().contains('No ingredient text could be extracted from the image.')) {
+        await _showManualInputDialog(
+          initialMessage: '这张图片没有成功识别出配料文字。你可以重新拍清晰一点的配料表，或直接手动输入配料继续分析。',
+        );
+        return;
+      }
+
       _showErrorDialog('分析失败: $e');
     }
   }
 
-  String _generateFoodName(List<String> ingredients) {
-    // 根据配料生成食品名称
-    if (ingredients.isEmpty) {
-      return '食品';
-    }
-    
-    // 根据主要配料推断食品类型
-    final firstIngredient = ingredients.first.toLowerCase();
-    
-    if (firstIngredient.contains('小麦粉') || firstIngredient.contains('面粉')) {
-      return '面食制品';
-    } else if (firstIngredient.contains('牛乳') || firstIngredient.contains('牛奶')) {
-      return '乳制品';
-    } else if (firstIngredient.contains('可可') || firstIngredient.contains('巧克力')) {
-      return '巧克力制品';
-    } else if (firstIngredient.contains('猪肉') || firstIngredient.contains('牛肉') || firstIngredient.contains('鸡肉')) {
-      return '肉制品';
-    } else if (firstIngredient.contains('马铃薯') || firstIngredient.contains('土豆')) {
-      return '薯类零食';
-    } else if (firstIngredient.contains('水') && ingredients.length <= 3) {
-      return '饮料';
-    } else if (firstIngredient.contains('糖') || firstIngredient.contains('甜味')) {
-      return '甜味食品';
-    } else {
-      return '加工食品';
-    }
+  Future<void> _showManualInputDialog({required String initialMessage}) async {
+    final ingredientsController = TextEditingController();
+    final productNameController = TextEditingController();
+    bool isSubmitting = false;
+    String? dialogError;
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            Future<void> submitManualAnalysis() async {
+              final ingredientsText = ingredientsController.text.trim();
+
+              if (ingredientsText.isEmpty) {
+                setDialogState(() {
+                  dialogError = '请输入至少一项配料';
+                });
+                return;
+              }
+
+              setDialogState(() {
+                isSubmitting = true;
+                dialogError = null;
+              });
+
+              try {
+                final result = await _backendApiService.analyzeIngredientsText(
+                  ingredientsText,
+                  productName: productNameController.text.trim(),
+                );
+
+                if (!dialogContext.mounted || !mounted) return;
+                Navigator.of(dialogContext).pop();
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => AnalysisResultPage(analysisResult: result),
+                  ),
+                );
+              } catch (error) {
+                setDialogState(() {
+                  dialogError = error.toString();
+                  isSubmitting = false;
+                });
+              }
+            }
+
+            return AlertDialog(
+              title: const Text('手动输入配料'),
+              content: SizedBox(
+                width: 420,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      initialMessage,
+                      style: TextStyle(color: Colors.grey[700], fontSize: 13),
+                    ),
+                    if (_lastFailedImageName != null) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        '图片: $_lastFailedImageName',
+                        style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                      ),
+                    ],
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: productNameController,
+                      decoration: const InputDecoration(
+                        labelText: '产品名（可选）',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: ingredientsController,
+                      maxLines: 6,
+                      decoration: const InputDecoration(
+                        labelText: '配料内容',
+                        hintText: '例如：小麦粉，白砂糖，植物油，食盐，香精',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    if (dialogError != null) ...[
+                      const SizedBox(height: 12),
+                      Text(
+                        dialogError!,
+                        style: TextStyle(color: Colors.red[700], fontSize: 13),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: isSubmitting ? null : () => Navigator.of(dialogContext).pop(),
+                  child: const Text('取消'),
+                ),
+                FilledButton(
+                  onPressed: isSubmitting ? null : submitManualAnalysis,
+                  child: isSubmitting
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Text('继续分析'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    ingredientsController.dispose();
+    productNameController.dispose();
   }
 
   void _showErrorDialog(String message) {
@@ -225,33 +267,6 @@ class _CameraPageState extends State<CameraPage> {
           TextButton(
             onPressed: () => Navigator.pop(context),
             child: const Text('确定'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showUsageLimitDialog() {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        title: const Text('使用次数已用完'),
-        content: const Text('您今天的使用次数已用完。订阅服务可享受无限次使用。'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('取消'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const PaywallPage()),
-              );
-            },
-            child: const Text('订阅'),
           ),
         ],
       ),

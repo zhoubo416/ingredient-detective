@@ -43,6 +43,12 @@ app.*.map.json
 .env
 .env.local
 .env.production
+/assets/.env
+
+# Node / Nuxt
+node_modules/
+.nuxt/
+.output/
 
 # Android Studio will place build artifacts here
 /android/app/debug

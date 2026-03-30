@@ -1,3 +1,5 @@
+// ignore_for_file: avoid_print, prefer_interpolation_to_compose_strings
+
 import 'dart:convert';
 import 'dart:async'; // 添加TimeoutException支持
 import 'package:http/http.dart' as http;

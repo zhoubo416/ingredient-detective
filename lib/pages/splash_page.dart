@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'home_page.dart';
+import 'login_page.dart';
+import '../services/auth_service.dart';
 
 class SplashPage extends StatefulWidget {
   const SplashPage({super.key});
@@ -9,15 +11,19 @@ class SplashPage extends StatefulWidget {
 }
 
 class _SplashPageState extends State<SplashPage> {
+  final AuthService _authService = AuthService();
+
   @override
   void initState() {
     super.initState();
-    // 延迟2秒后跳转到主页面
-    Future.delayed(const Duration(seconds: 2), () {
+    // 延迟后判断登录状态
+    Future.delayed(const Duration(seconds: 1), () {
       if (mounted) {
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (context) => const HomePage()),
+          MaterialPageRoute(
+            builder: (context) => _authService.isSignedIn ? const HomePage() : const LoginPage(),
+          ),
         );
       }
     });

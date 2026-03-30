@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:purchases_flutter/purchases_flutter.dart' as rc;
-import 'package:purchases_ui_flutter/purchases_ui_flutter.dart';
 import '../services/subscription_manager.dart';
 
 class SubscriptionPage extends StatefulWidget {

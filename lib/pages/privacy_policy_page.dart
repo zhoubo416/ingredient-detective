@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import 'dart:convert';
 
 class PrivacyPolicyPage extends StatefulWidget {
    const PrivacyPolicyPage({super.key});
@@ -178,41 +177,6 @@ class _PrivacyPolicyPageState extends State<PrivacyPolicyPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: widgets,
-    );
-  }
-  
-  Widget _buildSectionTitle(String title) {
-    return Text(
-      title,
-      style: const TextStyle(
-        fontSize: 18,
-        fontWeight: FontWeight.bold,
-        color: Colors.green,
-      ),
-    );
-  }
-  
-  Widget _buildSubsectionTitle(String title) {
-    return Text(
-      title,
-      style: const TextStyle(
-        fontSize: 16,
-        fontWeight: FontWeight.bold,
-      ),
-    );
-  }
-  
-  Widget _buildBulletPoint(String text) {
-    return Padding(
-      padding: const EdgeInsets.only(left: 16.0, top: 4.0),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text('•', style: TextStyle(fontSize: 16)),
-          const SizedBox(width: 8),
-          Expanded(child: Text(text)),
-        ],
-      ),
     );
   }
 }

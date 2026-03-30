@@ -32,8 +32,7 @@ class _PermissionTestPageState extends State<PermissionTestPage> {
   }
 
   Future<void> _requestPermission(Permission permission, String name) async {
-    final status = await permission.request();
-    print('$name 权限请求结果: $status');
+    await permission.request();
     await _checkAllPermissions();
   }
 

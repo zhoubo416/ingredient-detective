@@ -1,3 +1,5 @@
+// ignore_for_file: avoid_print
+
 import 'package:flutter_application_1/services/usage_manager.dart';
 
 void main() async {

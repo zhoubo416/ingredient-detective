@@ -1,3 +1,5 @@
+// ignore_for_file: deprecated_member_use
+
 import 'package:purchases_flutter/purchases_flutter.dart' as rc;
 import 'package:flutter/foundation.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
@@ -20,7 +22,6 @@ class RevenueCatService {
   ];
   
   // 状态变量
-  bool _isInitialized = false;
   rc.CustomerInfo? _customerInfo;
   List<rc.Package>? _availablePackages;
   
@@ -47,8 +48,6 @@ class RevenueCatService {
         _customerInfo = customerInfo;
         _notifyListeners();
       });
-      
-      _isInitialized = true;
       
       // 获取初始客户信息
       await _fetchCustomerInfo();
@@ -124,10 +123,8 @@ class RevenueCatService {
   Future<void> purchasePackage(rc.Package package) async {
     try {
       final purchaseResult = await rc.Purchases.purchasePackage(package);
-      if (purchaseResult.customerInfo != null) {
-        _customerInfo = purchaseResult.customerInfo;
-        _notifyListeners();
-      }
+      _customerInfo = purchaseResult.customerInfo;
+      _notifyListeners();
     } catch (e) {
       rethrow;
     }
