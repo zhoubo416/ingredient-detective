@@ -180,3 +180,44 @@ class FoodAnalysisResult {
     );
   }
 }
+
+// 快速分析结果 - 两阶段分析的第一阶段
+class QuickAnalysisResult {
+  final String foodName;
+  final double healthScore;
+  final ComplianceAnalysis compliance;
+  final ProcessingAnalysis processing;
+  final String overallAssessment;
+  final DateTime createdAt;
+
+  QuickAnalysisResult({
+    required this.foodName,
+    required this.healthScore,
+    required this.compliance,
+    required this.processing,
+    required this.overallAssessment,
+    required this.createdAt,
+  });
+
+  Map<String, dynamic> toMap() {
+    return {
+      'foodName': foodName,
+      'healthScore': healthScore,
+      'compliance': compliance.toMap(),
+      'processing': processing.toMap(),
+      'overallAssessment': overallAssessment,
+      'createdAt': createdAt.toIso8601String(),
+    };
+  }
+
+  factory QuickAnalysisResult.fromMap(Map<String, dynamic> map) {
+    return QuickAnalysisResult(
+      foodName: map['foodName'] ?? '',
+      healthScore: (map['healthScore'] as num?)?.toDouble() ?? 0.0,
+      compliance: ComplianceAnalysis.fromMap(map['compliance'] ?? {}),
+      processing: ProcessingAnalysis.fromMap(map['processing'] ?? {}),
+      overallAssessment: map['overallAssessment'] ?? '',
+      createdAt: DateTime.parse(map['createdAt'] ?? DateTime.now().toIso8601String()),
+    );
+  }
+}

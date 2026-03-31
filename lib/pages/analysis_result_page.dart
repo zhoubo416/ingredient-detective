@@ -1,18 +1,34 @@
 import 'package:flutter/material.dart';
 import '../models/ingredient_analysis.dart';
 
-class AnalysisResultPage extends StatelessWidget {
-  final FoodAnalysisResult analysisResult;
+class AnalysisResultPage extends StatefulWidget {
+  final FoodAnalysisResult? analysisResult;
+  final QuickAnalysisResult? quickResult;
   final bool isFromHistory;
 
   const AnalysisResultPage({
     super.key,
-    required this.analysisResult,
+    this.analysisResult,
+    this.quickResult,
     this.isFromHistory = false,
-  });
+  }) : assert(analysisResult != null || quickResult != null);
 
-  Widget _buildHealthScoreWidget() {
-    final score = analysisResult.healthScore;
+  @override
+  State<AnalysisResultPage> createState() => _AnalysisResultPageState();
+}
+
+class _AnalysisResultPageState extends State<AnalysisResultPage> {
+  late FoodAnalysisResult? _fullResult;
+  late QuickAnalysisResult? _quickResult;
+
+  @override
+  void initState() {
+    super.initState();
+    _fullResult = widget.analysisResult;
+    _quickResult = widget.quickResult;
+  }
+
+  Widget _buildHealthScoreWidget(double score) {
     Color color;
     String level;
 
@@ -124,8 +140,7 @@ class AnalysisResultPage extends StatelessWidget {
     );
   }
 
-  Widget _buildComplianceCard() {
-    final compliance = analysisResult.compliance;
+  Widget _buildComplianceCard(ComplianceAnalysis compliance) {
     Color statusColor;
     IconData statusIcon;
 
@@ -179,8 +194,7 @@ class AnalysisResultPage extends StatelessWidget {
     );
   }
 
-  Widget _buildProcessingCard() {
-    final processing = analysisResult.processing;
+  Widget _buildProcessingCard(ProcessingAnalysis processing) {
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -204,8 +218,145 @@ class AnalysisResultPage extends StatelessWidget {
     );
   }
 
-  Widget _buildClaimsCard() {
-    final claims = analysisResult.claims;
+  @override
+  Widget build(BuildContext context) {
+    final foodName = _fullResult?.foodName ?? _quickResult?.foodName ?? '未知食品';
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('分析结果'),
+        backgroundColor: Colors.green[700],
+        foregroundColor: Colors.white,
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // 食品名称和基础信息
+            Card(
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  children: [
+                    Text(
+                      foodName,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    if (_fullResult != null)
+                      Text(
+                        '配料数量: ${_fullResult!.ingredients.length}种',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: Colors.grey[600]),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+
+            // 快速结果 - 总是显示
+            if (_quickResult != null) ...[
+              _buildHealthScoreWidget(_quickResult!.healthScore),
+              const SizedBox(height: 20),
+              _buildComplianceCard(_quickResult!.compliance),
+              const SizedBox(height: 16),
+              _buildProcessingCard(_quickResult!.processing),
+              const SizedBox(height: 16),
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        '总体评价',
+                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(_quickResult!.overallAssessment),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+
+            // 详细配料分析 - 仅当完整结果准备好时显示
+            if (_fullResult != null) ...[
+              const SizedBox(height: 20),
+              if (_fullResult!.claims.assessment.isNotEmpty) ...[
+                _buildClaimsCard(_fullResult!.claims),
+                const SizedBox(height: 16),
+              ],
+              const Text(
+                '配料分析',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 10),
+              ..._fullResult!.ingredients.map(_buildIngredientCard),
+              const SizedBox(height: 20),
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        '建议',
+                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(_fullResult!.recommendations),
+                    ],
+                  ),
+                ),
+              ),
+            ] else ...[
+              // 加载中指示器
+              const SizedBox(height: 20),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: Colors.amber[50],
+                  border: Border.all(color: Colors.amber[300]!),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Column(
+                  children: [
+                    const SizedBox(
+                      width: 40,
+                      height: 40,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(Colors.amber),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    const Text(
+                      '详细配料分析生成中...',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.grey,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildClaimsCard(ClaimsAnalysis claims) {
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -226,103 +377,6 @@ class AnalysisResultPage extends StatelessWidget {
               const SizedBox(height: 8),
               Text('需要进一步核实: ${claims.questionableClaims.join('、')}'),
             ],
-          ],
-        ),
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('分析结果'),
-        backgroundColor: Colors.green[700],
-        foregroundColor: Colors.white,
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Card(
-              child: Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  children: [
-                    Text(
-                      analysisResult.foodName,
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      '配料数量: ${analysisResult.ingredients.length}种',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(color: Colors.grey[600]),
-                    ),
-                    Text(
-                      '分析时间: ${analysisResult.analysisTime.toString().substring(0, 16)}',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(color: Colors.grey[600]),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 20),
-            _buildHealthScoreWidget(),
-            const SizedBox(height: 20),
-            _buildComplianceCard(),
-            const SizedBox(height: 16),
-            _buildProcessingCard(),
-            const SizedBox(height: 16),
-            _buildClaimsCard(),
-            const SizedBox(height: 16),
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      '总体评价',
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(analysisResult.overallAssessment),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 20),
-            const Text(
-              '配料分析',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 10),
-            ...analysisResult.ingredients.map(_buildIngredientCard),
-            const SizedBox(height: 20),
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      '建议',
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(analysisResult.recommendations),
-                  ],
-                ),
-              ),
-            ),
           ],
         ),
       ),
