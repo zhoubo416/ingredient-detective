@@ -112,3 +112,32 @@ export function getScoreTone(score: number) {
     color: 'error' as const
   }
 }
+
+// 第一阶段快速分析结果（2-3秒内返回）
+export interface QuickAnalysisResult {
+  foodName: string
+  healthScore: number
+  overallAssessment: string
+  compliance: {
+    status: string // '合规' | '不合规' | '待确认'
+    description: string
+  }
+  processing: {
+    level: string // '轻度加工' | '中度加工' | '高度加工'
+    score: number
+  }
+  recommendations: string
+}
+
+// API 响应格式：快速返回 + 完整版本
+export interface AnalysisResponse {
+  id: string // 分析记录 ID
+  quick: QuickAnalysisResult // 立即可用
+  isComplete: boolean // 是否已生成详细分析
+}
+
+// 标记：详细结果已完成
+export interface AnalysisCompleteEvent {
+  id: string
+  isComplete: true
+}

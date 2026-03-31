@@ -21,6 +21,13 @@ interface LlmConfig {
   url: string
 }
 
+type PartialFoodAnalysisResult = Partial<FoodAnalysisResult> & {
+  ingredients?: unknown
+  compliance?: Partial<ComplianceAnalysis> | null
+  processing?: Partial<ProcessingAnalysis> | null
+  claims?: Partial<ClaimsAnalysis> | null
+}
+
 function createTimeoutSignal() {
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
@@ -163,6 +170,93 @@ function buildMockResult(ingredients: string[], productName: string): FoodAnalys
   }
 }
 
+function normalizeIngredientEntry(entry: unknown): IngredientAnalysis | null {
+  if (typeof entry === 'string') {
+    return mockIngredientRecord(entry)
+  }
+
+  if (!entry || typeof entry !== 'object') {
+    return null
+  }
+
+  const candidate = entry as Record<string, unknown>
+  const ingredientName = String(
+    candidate.ingredientName
+    ?? candidate.name
+    ?? candidate.ingredient
+    ?? candidate.title
+    ?? ''
+  ).trim()
+
+  if (!ingredientName) {
+    return null
+  }
+
+  const fallback = mockIngredientRecord(ingredientName)
+
+  return {
+    ingredientName,
+    function: String(candidate.function ?? candidate.role ?? fallback.function),
+    nutritionalValue: String(candidate.nutritionalValue ?? candidate.nutrition ?? fallback.nutritionalValue),
+    complianceStatus: String(candidate.complianceStatus ?? candidate.compliance ?? candidate.status ?? fallback.complianceStatus),
+    processingLevel: String(candidate.processingLevel ?? candidate.processing ?? candidate.level ?? fallback.processingLevel),
+    remarks: String(candidate.remarks ?? candidate.note ?? candidate.notes ?? fallback.remarks)
+  }
+}
+
+function normalizeIngredientRecords(input: unknown, ingredientLines: string[]) {
+  if (Array.isArray(input)) {
+    const normalized = input
+      .map(entry => normalizeIngredientEntry(entry))
+      .filter((entry): entry is IngredientAnalysis => Boolean(entry))
+
+    if (normalized.length > 0) {
+      return normalized
+    }
+  }
+
+  return ingredientLines.map(mockIngredientRecord)
+}
+
+export function normalizeFoodAnalysisResult(
+  input: unknown,
+  ingredientLines: string[],
+  productName: string
+): FoodAnalysisResult {
+  const mock = buildMockResult(ingredientLines, productName)
+
+  if (!input || typeof input !== 'object') {
+    return mock
+  }
+
+  const data = input as PartialFoodAnalysisResult
+
+  return {
+    foodName: data.foodName ?? mock.foodName,
+    ingredients: normalizeIngredientRecords(data.ingredients, ingredientLines),
+    healthScore: typeof data.healthScore === 'number' ? data.healthScore : mock.healthScore,
+    compliance: {
+      status: data.compliance?.status ?? mock.compliance.status,
+      description: data.compliance?.description ?? mock.compliance.description,
+      issues: Array.isArray(data.compliance?.issues) ? data.compliance.issues : mock.compliance.issues
+    },
+    processing: {
+      level: data.processing?.level ?? mock.processing.level,
+      description: data.processing?.description ?? mock.processing.description,
+      score: typeof data.processing?.score === 'number' ? data.processing.score : mock.processing.score
+    },
+    claims: {
+      detectedClaims: Array.isArray(data.claims?.detectedClaims) ? data.claims.detectedClaims : mock.claims.detectedClaims,
+      supportedClaims: Array.isArray(data.claims?.supportedClaims) ? data.claims.supportedClaims : mock.claims.supportedClaims,
+      questionableClaims: Array.isArray(data.claims?.questionableClaims) ? data.claims.questionableClaims : mock.claims.questionableClaims,
+      assessment: data.claims?.assessment ?? mock.claims.assessment
+    },
+    overallAssessment: data.overallAssessment ?? mock.overallAssessment,
+    recommendations: data.recommendations ?? mock.recommendations,
+    analysisTime: typeof data.analysisTime === 'string' ? data.analysisTime : mock.analysisTime
+  }
+}
+
 function resolveLlmConfig() {
   const config = useRuntimeConfig()
   const preferredProvider = String(config.llmProvider || '').trim().toLowerCase()
@@ -198,47 +292,9 @@ function parseAiResponse(response: string, ingredients: string[], productName: s
       return buildMockResult(ingredients, productName)
     }
 
-    const data = JSON.parse(response.slice(jsonStart, jsonEnd)) as Partial<FoodAnalysisResult> & {
-      compliance?: Partial<ComplianceAnalysis>
-      processing?: Partial<ProcessingAnalysis>
-      claims?: Partial<ClaimsAnalysis>
-    }
+    const data = JSON.parse(response.slice(jsonStart, jsonEnd)) as PartialFoodAnalysisResult
 
-    const mock = buildMockResult(ingredients, productName)
-
-    return {
-      foodName: data.foodName ?? mock.foodName,
-      ingredients: Array.isArray(data.ingredients) && data.ingredients.length > 0
-        ? data.ingredients.map(ingredient => ({
-          ingredientName: ingredient.ingredientName ?? '',
-          function: ingredient.function ?? '',
-          nutritionalValue: ingredient.nutritionalValue ?? '',
-          complianceStatus: ingredient.complianceStatus ?? '',
-          processingLevel: ingredient.processingLevel ?? '',
-          remarks: ingredient.remarks ?? ''
-        }))
-        : mock.ingredients,
-      healthScore: typeof data.healthScore === 'number' ? data.healthScore : mock.healthScore,
-      compliance: {
-        status: data.compliance?.status ?? mock.compliance.status,
-        description: data.compliance?.description ?? mock.compliance.description,
-        issues: Array.isArray(data.compliance?.issues) ? data.compliance.issues : mock.compliance.issues
-      },
-      processing: {
-        level: data.processing?.level ?? mock.processing.level,
-        description: data.processing?.description ?? mock.processing.description,
-        score: typeof data.processing?.score === 'number' ? data.processing.score : mock.processing.score
-      },
-      claims: {
-        detectedClaims: Array.isArray(data.claims?.detectedClaims) ? data.claims.detectedClaims : mock.claims.detectedClaims,
-        supportedClaims: Array.isArray(data.claims?.supportedClaims) ? data.claims.supportedClaims : mock.claims.supportedClaims,
-        questionableClaims: Array.isArray(data.claims?.questionableClaims) ? data.claims.questionableClaims : mock.claims.questionableClaims,
-        assessment: data.claims?.assessment ?? mock.claims.assessment
-      },
-      overallAssessment: data.overallAssessment ?? mock.overallAssessment,
-      recommendations: data.recommendations ?? mock.recommendations,
-      analysisTime: new Date().toISOString()
-    } satisfies FoodAnalysisResult
+    return normalizeFoodAnalysisResult(data, ingredients, productName)
   } catch {
     return buildMockResult(ingredients, productName)
   }

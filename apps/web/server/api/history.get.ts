@@ -1,18 +1,22 @@
 import { getQuery } from 'h3'
 import type { AnalysisHistoryItem, AnalysisSourceType } from '~/shared/analysis'
+import { normalizeFoodAnalysisResult } from '~/server/utils/analysis'
 import { getSupabaseAdminClient, requireApiUser } from '~/server/utils/supabase'
 
 function mapHistoryRow(row: Record<string, unknown>): AnalysisHistoryItem {
+  const ingredientLines = Array.isArray(row.ingredient_lines) ? row.ingredient_lines.map(item => String(item)) : []
+  const foodName = String(row.food_name)
+
   return {
     id: String(row.id),
     sourceType: row.source_type as AnalysisSourceType,
     imageFilename: row.image_filename ? String(row.image_filename) : null,
-    ingredientLines: Array.isArray(row.ingredient_lines) ? row.ingredient_lines.map(item => String(item)) : [],
+    ingredientLines,
     rawOcrText: row.raw_ocr_text ? String(row.raw_ocr_text) : null,
-    foodName: String(row.food_name),
+    foodName,
     healthScore: Number(row.health_score ?? 0),
     createdAt: String(row.created_at),
-    result: row.result as AnalysisHistoryItem['result']
+    result: normalizeFoodAnalysisResult(row.result, ingredientLines, foodName)
   }
 }
 

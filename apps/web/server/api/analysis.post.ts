@@ -4,9 +4,10 @@ import { readBody, readMultipartFormData, setResponseHeader } from 'h3'
 import { z } from 'zod'
 import type { AnalysisHistoryItem, AnalysisSourceType } from '~/shared/analysis'
 import { guessFoodName, normalizeIngredientLines } from '~/shared/analysis'
-import { analyzeIngredients } from '~/server/utils/analysis'
+import { analyzeIngredients, normalizeFoodAnalysisResult } from '~/server/utils/analysis'
 import { decodeBase64Image, extractIngredientLines, extractIngredientsFromImageBuffer } from '~/server/utils/ocr'
 import { getSupabaseAdminClient, requireApiUser } from '~/server/utils/supabase'
+import type { TimingMap } from '~/server/utils/timing'
 import { flattenTimingMap, measureTiming, recordTiming } from '~/server/utils/timing'
 import type { Json } from '~/types/database.types'
 
@@ -18,23 +19,26 @@ const bodySchema = z.object({
 })
 
 function mapHistoryRow(row: Record<string, unknown>): AnalysisHistoryItem {
+  const ingredientLines = Array.isArray(row.ingredient_lines) ? row.ingredient_lines.map(item => String(item)) : []
+  const foodName = String(row.food_name)
+
   return {
     id: String(row.id),
     sourceType: row.source_type as AnalysisSourceType,
     imageFilename: row.image_filename ? String(row.image_filename) : null,
-    ingredientLines: Array.isArray(row.ingredient_lines) ? row.ingredient_lines.map(item => String(item)) : [],
+    ingredientLines,
     rawOcrText: row.raw_ocr_text ? String(row.raw_ocr_text) : null,
-    foodName: String(row.food_name),
+    foodName,
     healthScore: Number(row.health_score ?? 0),
     createdAt: String(row.created_at),
-    result: row.result as AnalysisHistoryItem['result']
+    result: normalizeFoodAnalysisResult(row.result, ingredientLines, foodName)
   }
 }
 
 export default defineEventHandler(async event => {
   const startedAt = Date.now()
   const requestId = randomUUID()
-  const timings = {}
+  const timings: TimingMap = {}
   const user = await measureTiming(timings, 'auth', () => requireApiUser(event))
   const contentType = event.node.req.headers['content-type'] ?? ''
 
