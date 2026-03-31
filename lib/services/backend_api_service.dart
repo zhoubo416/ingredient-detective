@@ -72,8 +72,36 @@ class BackendApiService {
       throw Exception(payload['statusMessage']?.toString() ?? '分析失败');
     }
 
-    return FoodAnalysisResult.fromMap(
-      Map<String, dynamic>.from(payload['result'] as Map? ?? {}),
+    // 处理新的两阶段响应格式
+    final quickResult = payload['quick'] as Map<String, dynamic>?;
+    if (quickResult == null) {
+      throw Exception('API 返回数据格式错误');
+    }
+
+    // 将快速结果转换为完整的 FoodAnalysisResult
+    return FoodAnalysisResult(
+      foodName: quickResult['foodName'] ?? '',
+      ingredients: [], // 初始为空，稍后轮询填充
+      healthScore: (quickResult['healthScore'] as num?)?.toDouble() ?? 0.0,
+      compliance: ComplianceAnalysis(
+        status: (quickResult['compliance'] as Map?)?['status'] ?? '',
+        description: (quickResult['compliance'] as Map?)?['description'] ?? '',
+        issues: [],
+      ),
+      processing: ProcessingAnalysis(
+        level: (quickResult['processing'] as Map?)?['level'] ?? '',
+        description: (quickResult['processing'] as Map?)?['description'] ?? '',
+        score: ((quickResult['processing'] as Map?)?['score'] as num?)?.toDouble() ?? 1.0,
+      ),
+      claims: ClaimsAnalysis(
+        detectedClaims: [],
+        supportedClaims: [],
+        questionableClaims: [],
+        assessment: '详细分析生成中...',
+      ),
+      overallAssessment: quickResult['overallAssessment'] ?? '',
+      recommendations: quickResult['recommendations'] ?? '',
+      analysisTime: DateTime.now().toIso8601String(),
     );
   }
 
@@ -103,8 +131,36 @@ class BackendApiService {
       throw Exception(payload['statusMessage']?.toString() ?? '分析失败');
     }
 
-    return FoodAnalysisResult.fromMap(
-      Map<String, dynamic>.from(payload['result'] as Map? ?? {}),
+    // 处理新的两阶段响应格式
+    final quickResult = payload['quick'] as Map<String, dynamic>?;
+    if (quickResult == null) {
+      throw Exception('API 返回数据格式错误');
+    }
+
+    // 将快速结果转换为完整的 FoodAnalysisResult
+    return FoodAnalysisResult(
+      foodName: quickResult['foodName'] ?? '',
+      ingredients: [], // 初始为空，稍后轮询填充
+      healthScore: (quickResult['healthScore'] as num?)?.toDouble() ?? 0.0,
+      compliance: ComplianceAnalysis(
+        status: (quickResult['compliance'] as Map?)?['status'] ?? '',
+        description: (quickResult['compliance'] as Map?)?['description'] ?? '',
+        issues: [],
+      ),
+      processing: ProcessingAnalysis(
+        level: (quickResult['processing'] as Map?)?['level'] ?? '',
+        description: (quickResult['processing'] as Map?)?['description'] ?? '',
+        score: ((quickResult['processing'] as Map?)?['score'] as num?)?.toDouble() ?? 1.0,
+      ),
+      claims: ClaimsAnalysis(
+        detectedClaims: [],
+        supportedClaims: [],
+        questionableClaims: [],
+        assessment: '详细分析生成中...',
+      ),
+      overallAssessment: quickResult['overallAssessment'] ?? '',
+      recommendations: quickResult['recommendations'] ?? '',
+      analysisTime: DateTime.now().toIso8601String(),
     );
   }
 
