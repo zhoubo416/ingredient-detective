@@ -70,10 +70,19 @@ const scoreTone = computed(() => props.result ? getScoreTone(props.result.health
       <div class="space-y-4">
         <div class="flex items-center justify-between">
           <h3 class="text-xl font-semibold text-slate-900">逐项配料分析</h3>
-          <span class="text-sm text-slate-500">{{ result.ingredients.length }} 项</span>
+          <span class="text-sm text-slate-500">
+            {{ result.ingredients.length > 0 ? result.ingredients.length : '加载中' }} 项
+          </span>
         </div>
 
-        <div class="grid gap-4">
+        <div v-if="result.ingredients.length === 0" class="rounded-[1.5rem] border border-dashed border-slate-300 bg-amber-50/50 px-6 py-8 text-sm text-slate-600">
+          <p>详细配料分析生成中，请稍候...</p>
+          <div class="mt-3 h-1 w-full overflow-hidden rounded-full bg-slate-200">
+            <div class="h-full w-1/3 animate-pulse bg-amber-400"></div>
+          </div>
+        </div>
+
+        <div v-else class="grid gap-4">
           <div
             v-for="ingredient in result.ingredients"
             :key="ingredient.ingredientName"
