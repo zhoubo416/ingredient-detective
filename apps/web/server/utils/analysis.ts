@@ -3,7 +3,8 @@ import type {
   ComplianceAnalysis,
   FoodAnalysisResult,
   IngredientAnalysis,
-  ProcessingAnalysis
+  ProcessingAnalysis,
+  QuickAnalysisResult
 } from '~/shared/analysis'
 import { useRuntimeConfig } from '#imports'
 import { guessFoodName } from '~/shared/analysis'
@@ -297,6 +298,123 @@ function parseAiResponse(response: string, ingredients: string[], productName: s
     return normalizeFoodAnalysisResult(data, ingredients, productName)
   } catch {
     return buildMockResult(ingredients, productName)
+  }
+}
+
+export async function analyzeQuickMetrics(
+  ingredients: string[],
+  productName: string,
+  timings?: TimingMap
+): Promise<QuickAnalysisResult> {
+  const llm = resolveLlmConfig()
+
+  if (!llm) {
+    // Mock 模式
+    return {
+      foodName: productName || guessFoodName(ingredients),
+      healthScore: calculateHealthScore(ingredients),
+      overallAssessment: generateOverallAssessment(
+        calculateHealthScore(ingredients),
+        productName || guessFoodName(ingredients)
+      ),
+      compliance: buildMockCompliance(ingredients),
+      processing: buildMockProcessing(ingredients),
+      recommendations: generateRecommendations(
+        ingredients,
+        calculateHealthScore(ingredients)
+      )
+    }
+  }
+
+  const systemPrompt = `你是食品营养快速评估师。快速返回 JSON，格式如下，不包含逐项配料分析：
+{
+  "foodName": "食品类型",
+  "healthScore": 0-10 数值,
+  "overallAssessment": "一句话总体评价",
+  "compliance": {"status": "合规/不合规/待确认", "description": "简述"},
+  "processing": {"level": "轻/中/高", "score": 1-5},
+  "recommendations": "一句建议"
+}`
+
+  const userPrompt = `快速评估产品 "${productName}" 的配料：${ingredients.join(', ')}。只返回 JSON，无其他文本。`
+
+  const { signal, clear } = createTimeoutSignal()
+
+  try {
+    const requestStartedAt = Date.now()
+    const response = await fetch(llm.url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${llm.apiKey}`
+      },
+      body: JSON.stringify({
+        model: llm.model,
+        temperature: 0.2, // 更低温度，更稳定
+        max_tokens: 400, // 大幅降低
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt }
+        ]
+      }),
+      signal
+    })
+    recordTiming(timings ?? {}, 'ai.quick_fetch', Date.now() - requestStartedAt, {
+      provider: llm.provider,
+      model: llm.model
+    })
+
+    const parseStartedAt = Date.now()
+    const payload = await response.json() as {
+      choices?: Array<{ message?: { content?: string } }>
+    }
+    recordTiming(timings ?? {}, 'ai.quick_parse', Date.now() - parseStartedAt)
+
+    if (!response.ok) {
+      throw new Error('API error')
+    }
+
+    const content = payload.choices?.[0]?.message?.content
+    if (!content) {
+      throw new Error('No content')
+    }
+
+    const jsonStart = content.indexOf('{')
+    const jsonEnd = content.lastIndexOf('}') + 1
+    const data = JSON.parse(content.slice(jsonStart, jsonEnd)) as QuickAnalysisResult
+
+    return {
+      foodName: data.foodName ?? guessFoodName(ingredients),
+      healthScore: typeof data.healthScore === 'number' ? data.healthScore : calculateHealthScore(ingredients),
+      overallAssessment: data.overallAssessment ?? '',
+      compliance: {
+        status: data.compliance?.status ?? '待确认',
+        description: data.compliance?.description ?? ''
+      },
+      processing: {
+        level: data.processing?.level ?? '中度加工',
+        score: typeof data.processing?.score === 'number' ? data.processing.score : 3
+      },
+      recommendations: data.recommendations ?? ''
+    }
+  } catch {
+    // fallback 到 mock
+    return {
+      foodName: productName || guessFoodName(ingredients),
+      healthScore: calculateHealthScore(ingredients),
+      overallAssessment: generateOverallAssessment(
+        calculateHealthScore(ingredients),
+        productName || guessFoodName(ingredients)
+      ),
+      compliance: buildMockCompliance(ingredients),
+      processing: buildMockProcessing(ingredients),
+      recommendations: generateRecommendations(
+        ingredients,
+        calculateHealthScore(ingredients)
+      )
+    }
+  } finally {
+    clear()
   }
 }
 
