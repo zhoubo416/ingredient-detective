@@ -38,3 +38,13 @@ create policy "Users can delete own analysis results"
   for delete
   to authenticated
   using ((select auth.uid()) = user_id);
+
+-- Add timestamp fields for two-stage analysis tracking
+alter table public.analysis_results
+add column if not exists quick_analysis_at timestamp default null,
+add column if not exists detailed_analysis_at timestamp default null;
+
+-- Create index to query incomplete analyses
+create index if not exists idx_analysis_incomplete
+on public.analysis_results(user_id, created_at desc)
+where detailed_analysis_at is null;
