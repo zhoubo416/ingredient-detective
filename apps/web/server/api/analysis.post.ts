@@ -2,9 +2,9 @@ import { randomUUID } from 'node:crypto'
 import { Buffer } from 'node:buffer'
 import { readBody, readMultipartFormData, setResponseHeader } from 'h3'
 import { z } from 'zod'
-import type { AnalysisHistoryItem, AnalysisSourceType } from '~/shared/analysis'
+import type { AnalysisHistoryItem, AnalysisResponse, AnalysisSourceType } from '~/shared/analysis'
 import { guessFoodName, normalizeIngredientLines } from '~/shared/analysis'
-import { analyzeIngredients, normalizeFoodAnalysisResult } from '~/server/utils/analysis'
+import { analyzeIngredients, analyzeQuickMetrics, normalizeFoodAnalysisResult } from '~/server/utils/analysis'
 import { decodeBase64Image, extractIngredientLines, extractIngredientsFromImageBuffer } from '~/server/utils/ocr'
 import { getSupabaseAdminClient, requireApiUser } from '~/server/utils/supabase'
 import type { TimingMap } from '~/server/utils/timing'
@@ -106,13 +106,15 @@ export default defineEventHandler(async event => {
   }
 
   const resolvedProductName = productName || guessFoodName(ingredientLines)
-  const analysis = await measureTiming(
+
+  // 第一阶段：快速分析（立即返回）
+  const quick = await measureTiming(
     timings,
-    'ai.total',
-    () => analyzeIngredients(ingredientLines, resolvedProductName, timings),
-    { ingredientCount: ingredientLines.length }
+    'ai.quick',
+    () => analyzeQuickMetrics(ingredientLines, resolvedProductName, timings)
   )
 
+  // 保存到数据库（先保存快速结果）
   const supabase = getSupabaseAdminClient()
   const { data, error } = await measureTiming(timings, 'db.insert', async () => {
     return supabase
@@ -123,11 +125,12 @@ export default defineEventHandler(async event => {
         image_filename: imageFilename,
         raw_ocr_text: rawOcrText,
         ingredient_lines: ingredientLines as unknown as Json,
-        food_name: analysis.foodName,
-        health_score: analysis.healthScore,
-        result: analysis as unknown as Json
+        food_name: quick.foodName,
+        health_score: quick.healthScore,
+        result: {} as Json, // 暂时空结果，稍后填充
+        quick_analysis_at: new Date().toISOString()
       })
-      .select('id, source_type, image_filename, ingredient_lines, raw_ocr_text, food_name, health_score, result, created_at')
+      .select('id')
       .single()
   })
 
@@ -138,34 +141,90 @@ export default defineEventHandler(async event => {
     })
   }
 
-  const totalMs = Date.now() - startedAt
-  recordTiming(timings, 'request.total', totalMs, {
-    sourceType,
-    ingredientCount: ingredientLines.length,
-    rawOcrTextLength: rawOcrText?.length ?? 0
+  const analysisId = data.id
+
+  // 第二阶段：异步生成详细分析（后台执行，不阻塞响应）
+  generateDetailedAnalysisInBackground(
+    String(analysisId),
+    user.id,
+    ingredientLines,
+    resolvedProductName,
+    imageFilename,
+    rawOcrText,
+    sourceType
+  ).catch(err => {
+    console.error('[analysis-background-error]', { analysisId, error: err })
   })
 
-  setResponseHeader(event, 'Server-Timing', [
-    `auth;dur=${timings.auth?.ms ?? 0}`,
-    `parse;dur=${(timings['request.parse_multipart']?.ms ?? 0) + (timings['request.read_body']?.ms ?? 0) + (timings['request.parse_json']?.ms ?? 0)}`,
-    `ocr;dur=${timings['ocr.total']?.ms ?? 0}`,
-    `ai;dur=${timings['ai.total']?.ms ?? 0}`,
-    `db;dur=${timings['db.insert']?.ms ?? 0}`,
-    `total;dur=${totalMs}`
-  ].join(', '))
+  const totalMs = Date.now() - startedAt
+  recordTiming(timings, 'request.total', totalMs)
+
   setResponseHeader(event, 'X-Request-Id', requestId)
   setResponseHeader(event, 'X-Analysis-Timing', JSON.stringify({
     requestId,
+    stage: 'quick',
+    durationMs: totalMs,
     ...flattenTimingMap(timings)
   }))
-  console.info('[analysis-timing]', JSON.stringify({
+
+  console.info('[analysis-quick]', JSON.stringify({
     requestId,
     userId: user.id,
-    sourceType,
-    imageFilename,
-    timings,
+    analysisId,
     totalMs
   }))
 
-  return mapHistoryRow(data)
+  // 返回快速结果 + 记录 ID
+  return {
+    id: String(analysisId),
+    quick,
+    isComplete: false
+  } satisfies AnalysisResponse
 })
+
+async function generateDetailedAnalysisInBackground(
+  analysisId: string,
+  userId: string,
+  ingredientLines: string[],
+  productName: string,
+  imageFilename: string | null,
+  rawOcrText: string | null,
+  sourceType: AnalysisSourceType
+) {
+  try {
+    const timings: TimingMap = {}
+    const startedAt = Date.now()
+
+    // 生成详细分析
+    const fullAnalysis = await measureTiming(
+      timings,
+      'ai.detailed',
+      () => analyzeIngredients(ingredientLines, productName, timings)
+    )
+
+    const supabase = getSupabaseAdminClient()
+    await measureTiming(timings, 'db.update', async () => {
+      return supabase
+        .from('analysis_results')
+        .update({
+          result: fullAnalysis as unknown as Json,
+          detailed_analysis_at: new Date().toISOString()
+        })
+        .eq('id', analysisId)
+    })
+
+    const totalMs = Date.now() - startedAt
+
+    console.info('[analysis-detailed-complete]', JSON.stringify({
+      analysisId,
+      userId,
+      totalMs,
+      timings
+    }))
+  } catch (err) {
+    console.error('[analysis-detailed-error]', {
+      analysisId,
+      error: err instanceof Error ? err.message : String(err)
+    })
+  }
+}
