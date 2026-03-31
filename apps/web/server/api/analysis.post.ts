@@ -127,8 +127,7 @@ export default defineEventHandler(async event => {
         ingredient_lines: ingredientLines as unknown as Json,
         food_name: quick.foodName,
         health_score: quick.healthScore,
-        result: {} as Json, // 暂时空结果，稍后填充
-        quick_analysis_at: new Date().toISOString()
+        result: {} as Json // 暂时空结果，稍后填充
       })
       .select('id')
       .single()
@@ -207,8 +206,7 @@ async function generateDetailedAnalysisInBackground(
       return supabase
         .from('analysis_results')
         .update({
-          result: fullAnalysis as unknown as Json,
-          detailed_analysis_at: new Date().toISOString()
+          result: fullAnalysis as unknown as Json
         })
         .eq('id', analysisId)
     })
