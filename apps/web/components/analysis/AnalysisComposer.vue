@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { AnalysisHistoryItem } from '~/shared/analysis'
+import type { AnalysisHistoryItem, AnalysisResponse } from '~/shared/analysis'
 
 const emit = defineEmits<{
   completed: [item: AnalysisHistoryItem]
@@ -7,11 +7,12 @@ const emit = defineEmits<{
 
 const mode = ref<'image' | 'manual'>('image')
 const file = ref<File | null>(null)
+const selectedImage = ref<File | null>(null)
 const previewUrl = ref('')
 const productName = ref('')
 const ingredientsText = ref('')
 const errorMessage = ref('')
-const pending = ref(false)
+const loading = ref(false)
 
 function resetPreview() {
   if (previewUrl.value) {
@@ -25,6 +26,7 @@ function handleFileChange(event: Event) {
   const selectedFile = target.files?.[0] ?? null
 
   file.value = selectedFile
+  selectedImage.value = selectedFile
   resetPreview()
 
   if (selectedFile) {
@@ -32,43 +34,85 @@ function handleFileChange(event: Event) {
   }
 }
 
-async function submitAnalysis() {
-  pending.value = true
+async function handleSubmit() {
+  loading.value = true
   errorMessage.value = ''
 
   try {
-    let item: AnalysisHistoryItem
-
-    if (mode.value === 'image') {
-      if (!file.value) {
-        throw new Error('请先选择一张食品包装图片。')
-      }
-
-      const formData = new FormData()
-      formData.append('image', file.value)
-      if (productName.value.trim()) {
-        formData.append('productName', productName.value.trim())
-      }
-
-      item = await $fetch<AnalysisHistoryItem>('/api/analysis', {
-        method: 'POST',
-        body: formData
-      })
-    } else {
-      item = await $fetch<AnalysisHistoryItem>('/api/analysis', {
-        method: 'POST',
-        body: {
-          productName: productName.value.trim(),
-          ingredientsText: ingredientsText.value.trim()
-        }
-      })
+    const formData = new FormData()
+    if (selectedImage.value) {
+      formData.append('image', selectedImage.value)
+    }
+    if (ingredientsText.value) {
+      formData.append('ingredientsText', ingredientsText.value)
+    }
+    if (productName.value) {
+      formData.append('productName', productName.value)
     }
 
-    emit('completed', item)
+    // 提交分析请求
+    const response = await $fetch<AnalysisResponse>('/api/analysis', {
+      method: 'POST',
+      body: formData
+    })
+
+    // 立即发出已完成事件（带快速结果）
+    const quickHistoryItem: AnalysisHistoryItem = {
+      id: response.id,
+      sourceType: 'image',
+      imageFilename: null,
+      ingredientLines: [],
+      rawOcrText: null,
+      foodName: response.quick.foodName,
+      healthScore: response.quick.healthScore,
+      createdAt: new Date().toISOString(),
+      result: {
+        foodName: response.quick.foodName,
+        ingredients: [],
+        healthScore: response.quick.healthScore,
+        compliance: response.quick.compliance,
+        processing: response.quick.processing,
+        claims: {
+          detectedClaims: [],
+          supportedClaims: [],
+          questionableClaims: [],
+          assessment: '详细分析中...'
+        },
+        overallAssessment: response.quick.overallAssessment,
+        recommendations: response.quick.recommendations,
+        analysisTime: new Date().toISOString()
+      }
+    }
+
+    emit('completed', quickHistoryItem)
+
+    // 后台轮询完整结果
+    if (!response.isComplete) {
+      pollForDetailedAnalysis(response.id)
+    }
   } catch (error) {
-    errorMessage.value = error instanceof Error ? error.message : '分析失败，请稍后再试。'
+    errorMessage.value = error instanceof Error ? error.message : '分析失败'
   } finally {
-    pending.value = false
+    loading.value = false
+  }
+}
+
+// 轮询完整分析结果
+async function pollForDetailedAnalysis(analysisId: string, maxAttempts = 60) {
+  for (let i = 0; i < maxAttempts; i++) {
+    await new Promise(resolve => setTimeout(resolve, 2000)) // 每 2 秒轮询一次
+
+    try {
+      const response = await $fetch<AnalysisHistoryItem>(`/api/analysis/${analysisId}`)
+
+      if (response && response.result.ingredients && response.result.ingredients.length > 0) {
+        // 发出更新事件，让父组件刷新结果显示
+        emit('completed', response)
+        return
+      }
+    } catch (err) {
+      console.warn('[poll-error]', err)
+    }
   }
 }
 
@@ -148,7 +192,7 @@ onBeforeUnmount(() => {
         />
       </div>
 
-      <UButton size="xl" :loading="pending" @click="submitAnalysis">
+      <UButton size="xl" :loading="loading" @click="handleSubmit">
         提交到后台分析
       </UButton>
     </div>
