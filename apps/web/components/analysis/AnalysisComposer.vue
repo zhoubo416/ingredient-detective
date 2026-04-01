@@ -70,16 +70,23 @@ async function handleSubmit() {
         foodName: response.quick.foodName,
         ingredients: [],
         healthScore: response.quick.healthScore,
-        compliance: response.quick.compliance,
-        processing: response.quick.processing,
+        compliance: {
+          ...response.quick.compliance,
+          issues: []
+        },
+        processing: {
+          ...response.quick.processing,
+          description: ''
+        },
         claims: {
           detectedClaims: [],
           supportedClaims: [],
           questionableClaims: [],
-          assessment: '详细分析中...'
+          assessment: ''
         },
         overallAssessment: response.quick.overallAssessment,
         recommendations: response.quick.recommendations,
+        warnings: [],
         analysisTime: new Date().toISOString()
       }
     }
@@ -165,6 +172,7 @@ onBeforeUnmount(() => {
           id="product-name"
           v-model="productName"
           size="xl"
+          class="w-full"
           placeholder="可选，留空则由系统自动判断食品类型"
         />
       </div>
@@ -188,6 +196,7 @@ onBeforeUnmount(() => {
           id="ingredients-text"
           v-model="ingredientsText"
           :rows="8"
+          class="w-full"
           placeholder="例如：生牛乳、白砂糖、乳清蛋白粉、果胶……"
         />
       </div>

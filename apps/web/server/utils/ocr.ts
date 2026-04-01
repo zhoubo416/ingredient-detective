@@ -19,6 +19,24 @@ const ingredientKeywords = [
 const excludeWords = ['营养成分', '保质期', '生产日期', '厂家', '地址', '电话', '网址', '条码']
 
 const ingredientSectionLabels = ['配料表', '配料', '产品配料', '成分', '主要成分', '原料']
+const sectionStopMarkers = [
+  '营养成分表',
+  '营养成分',
+  '食用方法',
+  '贮存条件',
+  '储存条件',
+  '保质期',
+  '生产日期',
+  '生产商',
+  '制造商',
+  '委托方',
+  '地址',
+  '电话',
+  '净含量',
+  '执行标准',
+  '产品类型',
+  '过敏原'
+]
 
 function encodeAliyun(value: string) {
   return encodeURIComponent(value)
@@ -49,7 +67,7 @@ function generateSignature(
 
 export function parseIngredientsFromText(text: string) {
   const lines = text.split('\n')
-  const ingredients: string[] = []
+  const ingredients = new Set<string>()
 
   for (const rawLine of lines) {
     const line = rawLine.trim()
@@ -57,32 +75,40 @@ export function parseIngredientsFromText(text: string) {
       continue
     }
 
-    const cleanedLine = line.replace(/[0-9%.()（）]/g, '').trim()
-    if (!cleanedLine) {
+    if (sectionStopMarkers.some(marker => line.includes(marker))) {
       continue
     }
 
-    const containsKnownKeyword = ingredientKeywords.some(keyword => cleanedLine.includes(keyword))
+    const cleanedLine = stripIngredientLabels(line)
+      .replace(/[【】[\]]/g, ' ')
+      .replace(/[：:]/g, ' ')
+      .trim()
 
-    if (containsKnownKeyword) {
-      if (!ingredients.includes(cleanedLine)) {
-        ingredients.push(cleanedLine)
+    const rawTokens = cleanedLine
+      .split(/[，,、；;。/]/g)
+      .map(token => normalizeToken(token))
+      .filter(Boolean)
+
+    const hasKeywordInLine = ingredientKeywords.some(keyword => cleanedLine.includes(keyword))
+
+    for (const token of rawTokens) {
+      if (!isLikelyIngredientToken(token)) {
+        continue
       }
-      continue
-    }
 
-    const looksLikeIngredient =
-      cleanedLine.length > 1 &&
-      cleanedLine.length < 20 &&
-      /[\u4e00-\u9fa5]/.test(cleanedLine) &&
-      !excludeWords.some(word => cleanedLine.includes(word))
+      if (hasKeywordInLine || ingredientKeywords.some(keyword => token.includes(keyword))) {
+        ingredients.add(token)
+        continue
+      }
 
-    if (looksLikeIngredient && !ingredients.includes(cleanedLine)) {
-      ingredients.push(cleanedLine)
+      // 对没有命中关键词的 token 做保守保留：长度较短且中文占比高
+      if (token.length <= 16 && /[\u4e00-\u9fa5]{2,}/.test(token)) {
+        ingredients.add(token)
+      }
     }
   }
 
-  return ingredients
+  return Array.from(ingredients)
 }
 
 function stripIngredientLabels(text: string) {
@@ -98,7 +124,16 @@ function extractIngredientSection(text: string) {
   }
 
   const index = text.indexOf(matchedLabel)
-  return text.slice(index + matchedLabel.length)
+  const section = text.slice(index + matchedLabel.length)
+  const stopIndexes = sectionStopMarkers
+    .map(marker => section.indexOf(marker))
+    .filter(pos => pos >= 0)
+
+  if (stopIndexes.length === 0) {
+    return section
+  }
+
+  return section.slice(0, Math.min(...stopIndexes))
 }
 
 function parseIngredientsFromLooseText(text: string) {
@@ -119,14 +154,37 @@ function parseIngredientsFromLooseText(text: string) {
   )
 
   const candidates = tokens
-    .map(item => item.trim())
-    .map(item => item.replace(/^[：:\-•\d.\s]+/, '').trim())
+    .map(item => normalizeToken(item))
     .filter(Boolean)
-    .filter(item => !excludeWords.some(word => item.includes(word)))
-    .filter(item => /[\u4e00-\u9fa5]/.test(item))
-    .filter(item => item.length >= 2)
+    .filter(item => isLikelyIngredientToken(item))
 
   return Array.from(new Set(candidates))
+}
+
+function normalizeToken(input: string) {
+  return input
+    .replace(/^[：:\-•\d.\s]+/, '')
+    .replace(/[()（）]/g, '')
+    .replace(/\s+/g, '')
+    .trim()
+}
+
+function isLikelyIngredientToken(token: string) {
+  if (!token) return false
+  if (token.length < 2 || token.length > 24) return false
+  if (excludeWords.some(word => token.includes(word))) return false
+  if (sectionStopMarkers.some(marker => token.includes(marker))) return false
+
+  if (/^\d+([./-]\d+)*$/.test(token)) return false
+  if (/^\d+(g|kg|ml|l|kcal|%)$/i.test(token)) return false
+  if (/^\d{4}[./-]\d{1,2}[./-]\d{1,2}$/.test(token)) return false
+
+  // 纯英文数字且非食品添加剂编码，视为噪音
+  if (/^[a-z0-9%.\-]+$/i.test(token) && !/^e\d{3,4}$/i.test(token)) {
+    return false
+  }
+
+  return /[\u4e00-\u9fa5a-zA-Z]/.test(token)
 }
 
 export function extractIngredientLines(text: string) {

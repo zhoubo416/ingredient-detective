@@ -1,0 +1,11 @@
+╭─── Claude Code v2.1.81 ──────────────────────────────────────────────────────╮
+│                                        │ Tips for getting started            │
+│              Welcome back!             │ Run /init to create a CLAUDE.md fi… │
+│                                        │ ─────────────────────────────────── │
+│                 ▐▛███▜▌                │ Recent activity                     │
+│                ▝▜█████▛▘               │ No recent activity                  │
+│                  ▘▘ ▝▝                 │                                     │
+│                                        │                                     │
+│     Sonnet 4.6 · API Usage Billing     │                                     │
+│   ~/code/github/ingredient-detective   │                                     │
+╰──────────────────────────────────────────────────────────────────────────────╯

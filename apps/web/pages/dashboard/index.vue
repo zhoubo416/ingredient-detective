@@ -25,7 +25,9 @@ async function loadHistory() {
     })
 
     history.value = response.items
-    selected.value = selected.value ?? response.items[0] ?? null
+    if (selected.value && !response.items.some(item => item.id === selected.value?.id)) {
+      selected.value = null
+    }
   } catch (error) {
     errorMessage.value = error instanceof Error ? error.message : '历史记录加载失败。'
   } finally {
@@ -45,7 +47,7 @@ async function handleRemove(id: string) {
 
   history.value = history.value.filter(item => item.id !== id)
   if (selected.value?.id === id) {
-    selected.value = history.value[0] ?? null
+    selected.value = null
   }
 }
 
@@ -54,7 +56,7 @@ onMounted(loadHistory)
 
 <template>
   <UContainer class="space-y-8 py-12">
-    <div class="glass-panel rounded-[2rem] p-8">
+    <div class="glass-panel reveal-up rounded-[2rem] p-8">
       <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <span class="eyebrow">
@@ -63,11 +65,11 @@ onMounted(loadHistory)
           </span>
           <h1 class="mt-4 text-4xl font-semibold text-slate-900">欢迎回来，{{ user?.email }}</h1>
           <p class="mt-3 max-w-3xl text-sm leading-7 text-slate-600">
-            在这里上传食品包装或粘贴配料文本。识别、分析和结果存储都由后端执行，客户端只负责输入和展示。
+            上传食品包装图或粘贴配料文本，系统会自动完成识别与分析。分析完成后可在历史页按关键词快速检索。
           </p>
         </div>
         <UButton to="/dashboard/history" color="neutral" variant="soft">
-          查看完整历史
+          历史查询
         </UButton>
       </div>
     </div>
@@ -85,7 +87,7 @@ onMounted(loadHistory)
       <AnalysisResultCard :result="selected?.result ?? null" />
     </div>
 
-    <section class="space-y-4">
+    <section class="space-y-4 reveal-up delay-1">
       <div class="flex items-center justify-between">
         <h2 class="text-2xl font-semibold text-slate-900">最近历史</h2>
         <span class="text-sm text-slate-500">{{ history.length }} 条</span>
@@ -98,6 +100,7 @@ onMounted(loadHistory)
       <HistoryList
         v-else
         :items="history"
+        :selected-id="selected?.id ?? ''"
         @select="selected = $event"
         @remove="handleRemove"
       />

@@ -3,19 +3,28 @@ import { Buffer } from 'node:buffer'
 import { readBody, readMultipartFormData, setResponseHeader } from 'h3'
 import { z } from 'zod'
 import type { AnalysisHistoryItem, AnalysisResponse, AnalysisSourceType } from '~/shared/analysis'
-import { guessFoodName, normalizeIngredientLines } from '~/shared/analysis'
+import { normalizeIngredientLines } from '~/shared/analysis'
 import { analyzeIngredients, analyzeQuickMetrics, normalizeFoodAnalysisResult } from '~/server/utils/analysis'
+import type { UserHealthProfileContext } from '~/server/utils/analysis'
 import { decodeBase64Image, extractIngredientLines, extractIngredientsFromImageBuffer } from '~/server/utils/ocr'
 import { getSupabaseAdminClient, requireApiUser } from '~/server/utils/supabase'
 import type { TimingMap } from '~/server/utils/timing'
 import { flattenTimingMap, measureTiming, recordTiming } from '~/server/utils/timing'
 import type { Json } from '~/types/database.types'
 
+const healthProfileSchema = z.object({
+  gender: z.string().trim().optional(),
+  heightCm: z.number().positive().max(260).optional(),
+  weightKg: z.number().positive().max(500).optional(),
+  healthConditions: z.array(z.string().trim().min(1).max(100)).max(20).optional()
+})
+
 const bodySchema = z.object({
   ingredientsText: z.string().trim().optional(),
   imageBase64: z.string().trim().optional(),
   filename: z.string().trim().optional(),
-  productName: z.string().trim().optional()
+  productName: z.string().trim().optional(),
+  userHealthProfile: healthProfileSchema.optional()
 })
 
 function mapHistoryRow(row: Record<string, unknown>): AnalysisHistoryItem {
@@ -31,7 +40,39 @@ function mapHistoryRow(row: Record<string, unknown>): AnalysisHistoryItem {
     foodName,
     healthScore: Number(row.health_score ?? 0),
     createdAt: String(row.created_at),
-    result: normalizeFoodAnalysisResult(row.result, ingredientLines, foodName)
+    result: normalizeFoodAnalysisResult(row.result, ingredientLines, {
+      foodName,
+      healthScore: Number(row.health_score ?? 0),
+      analysisTime: String(row.created_at)
+    })
+  }
+}
+
+function buildStoredQuickResult(quick: AnalysisResponse['quick']) {
+  return {
+    foodName: quick.foodName,
+    ingredients: [],
+    healthScore: quick.healthScore,
+    compliance: {
+      status: quick.compliance.status,
+      description: quick.compliance.description,
+      issues: []
+    },
+    processing: {
+      level: quick.processing.level,
+      description: '',
+      score: quick.processing.score
+    },
+    claims: {
+      detectedClaims: [],
+      supportedClaims: [],
+      questionableClaims: [],
+      assessment: ''
+    },
+    overallAssessment: quick.overallAssessment,
+    recommendations: quick.recommendations,
+    warnings: [],
+    analysisTime: new Date().toISOString()
   }
 }
 
@@ -48,14 +89,27 @@ export default defineEventHandler(async event => {
   let ingredientLines: string[] = []
   let rawOcrText: string | null = null
   let imageBuffer: Buffer | null = null
+  let userHealthProfile: UserHealthProfileContext | null = null
 
   if (contentType.includes('multipart/form-data')) {
     const formData = await measureTiming(timings, 'request.parse_multipart', () => readMultipartFormData(event))
     const imagePart = formData?.find(part => part.type?.startsWith('image/') || part.name === 'image')
     const ingredientPart = formData?.find(part => part.name === 'ingredientsText')
     const productPart = formData?.find(part => part.name === 'productName')
+    const healthProfilePart = formData?.find(part => part.name === 'userHealthProfile')
 
     productName = productPart?.data?.toString('utf8').trim() ?? ''
+    if (healthProfilePart?.data?.length) {
+      try {
+        const parsed = JSON.parse(healthProfilePart.data.toString('utf8'))
+        const validated = healthProfileSchema.safeParse(parsed)
+        if (validated.success) {
+          userHealthProfile = validated.data
+        }
+      } catch {
+        // ignore invalid client health profile
+      }
+    }
 
     if (imagePart?.data?.length) {
       sourceType = 'image'
@@ -73,6 +127,7 @@ export default defineEventHandler(async event => {
     const body = bodySchema.parse(rawBody)
     recordTiming(timings, 'request.parse_json', 0)
     productName = body.productName ?? ''
+    userHealthProfile = body.userHealthProfile ?? null
 
     if (body.imageBase64) {
       sourceType = 'image'
@@ -105,13 +160,22 @@ export default defineEventHandler(async event => {
     })
   }
 
-  const resolvedProductName = productName || guessFoodName(ingredientLines)
+  const resolvedProductName = productName.trim()
+  const detailedTimings: TimingMap = {}
+  const detailedStartedAt = Date.now()
+  const detailedAnalysisPromise = analyzeIngredients(
+    ingredientLines,
+    resolvedProductName,
+    userHealthProfile,
+    detailedTimings
+  )
+  detailedAnalysisPromise.catch(() => {})
 
   // 第一阶段：快速分析（立即返回）
   const quick = await measureTiming(
     timings,
     'ai.quick',
-    () => analyzeQuickMetrics(ingredientLines, resolvedProductName, timings)
+    () => analyzeQuickMetrics(ingredientLines, resolvedProductName, userHealthProfile, timings)
   )
 
   // 保存到数据库（先保存快速结果）
@@ -127,7 +191,7 @@ export default defineEventHandler(async event => {
         ingredient_lines: ingredientLines as unknown as Json,
         food_name: quick.foodName,
         health_score: quick.healthScore,
-        result: {} as Json // 暂时空结果，稍后填充
+        result: buildStoredQuickResult(quick) as unknown as Json
       })
       .select('id')
       .single()
@@ -143,17 +207,15 @@ export default defineEventHandler(async event => {
   const analysisId = data.id
 
   // 第二阶段：异步生成详细分析（后台执行，不阻塞响应）
-  generateDetailedAnalysisInBackground(
-    String(analysisId),
-    user.id,
-    ingredientLines,
-    resolvedProductName,
-    imageFilename,
-    rawOcrText,
-    sourceType
-  ).catch(err => {
-    console.error('[analysis-background-error]', { analysisId, error: err })
-  })
+  event.waitUntil(
+    generateDetailedAnalysisInBackground(
+      String(analysisId),
+      user.id,
+      detailedAnalysisPromise,
+      detailedTimings,
+      detailedStartedAt
+    )
+  )
 
   const totalMs = Date.now() - startedAt
   recordTiming(timings, 'request.total', totalMs)
@@ -184,22 +246,13 @@ export default defineEventHandler(async event => {
 async function generateDetailedAnalysisInBackground(
   analysisId: string,
   userId: string,
-  ingredientLines: string[],
-  productName: string,
-  imageFilename: string | null,
-  rawOcrText: string | null,
-  sourceType: AnalysisSourceType
+  detailedAnalysisPromise: ReturnType<typeof analyzeIngredients>,
+  timings: TimingMap,
+  startedAt: number
 ) {
   try {
-    const timings: TimingMap = {}
-    const startedAt = Date.now()
-
-    // 生成详细分析
-    const fullAnalysis = await measureTiming(
-      timings,
-      'ai.detailed',
-      () => analyzeIngredients(ingredientLines, productName, timings)
-    )
+    const fullAnalysis = await detailedAnalysisPromise
+    recordTiming(timings, 'ai.detailed', Date.now() - startedAt)
 
     const supabase = getSupabaseAdminClient()
     await measureTiming(timings, 'db.update', async () => {

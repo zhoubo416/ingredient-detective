@@ -7,6 +7,11 @@ export interface IngredientAnalysis {
   complianceStatus: string
   processingLevel: string
   remarks: string
+  riskLevel: 'normal' | 'additive' | 'caution'
+  riskReason: string
+  actionableAdvice: string
+  negativeImpact: string
+  isAdditive: boolean
 }
 
 export interface ComplianceAnalysis {
@@ -37,6 +42,7 @@ export interface FoodAnalysisResult {
   claims: ClaimsAnalysis
   overallAssessment: string
   recommendations: string
+  warnings: string[]
   analysisTime: string
 }
 

@@ -7,7 +7,6 @@ import type {
   QuickAnalysisResult
 } from '~/shared/analysis'
 import { useRuntimeConfig } from '#imports'
-import { guessFoodName } from '~/shared/analysis'
 import type { TimingMap } from '~/server/utils/timing'
 import { recordTiming } from '~/server/utils/timing'
 
@@ -20,6 +19,13 @@ interface LlmConfig {
   model: string
   provider: 'qwen' | 'deepseek'
   url: string
+}
+
+export interface UserHealthProfileContext {
+  gender?: string
+  heightCm?: number
+  weightKg?: number
+  healthConditions?: string[]
 }
 
 type PartialFoodAnalysisResult = Partial<FoodAnalysisResult> & {
@@ -39,141 +45,53 @@ function createTimeoutSignal() {
   }
 }
 
-function mockIngredientRecord(ingredientName: string): IngredientAnalysis {
-  const lower = ingredientName.toLowerCase()
-  const isAdditive = ['糖', '香精', '防腐剂', '色素', '甜味剂', '乳化剂'].some(token => lower.includes(token))
-
-  return {
-    ingredientName,
-    function: isAdditive ? '用于调味、着色或延长保质期' : '作为食品主体原料或基础配料',
-    nutritionalValue: isAdditive ? '营养贡献有限，更多影响口感与风味' : '提供基础能量或营养成分',
-    complianceStatus: isAdditive ? '待确认' : '常见配料',
-    processingLevel: isAdditive ? '较高' : '中等',
-    remarks: isAdditive ? '建议结合摄入频率评估' : '可结合整体配方继续判断'
-  }
-}
-
-function calculateHealthScore(ingredients: string[]) {
-  let score = 8
-
-  for (const token of ['水', '牛乳', '鸡蛋', '大豆', '马铃薯', '蔬菜']) {
-    if (ingredients.some(ingredient => ingredient.includes(token))) {
-      score += 0.5
-    }
+function buildUserHealthContextPrompt(profile?: UserHealthProfileContext | null) {
+  if (!profile) {
+    return ''
   }
 
-  for (const token of ['糖', '添加剂', '香精', '防腐剂', '色素']) {
-    if (ingredients.some(ingredient => ingredient.includes(token))) {
-      score -= 0.8
-    }
+  const lines: string[] = []
+
+  if (profile.gender?.trim()) {
+    lines.push(`- 性别: ${profile.gender.trim()}`)
+  }
+  if (typeof profile.heightCm === 'number' && profile.heightCm > 0) {
+    lines.push(`- 身高: ${profile.heightCm} cm`)
+  }
+  if (typeof profile.weightKg === 'number' && profile.weightKg > 0) {
+    lines.push(`- 体重: ${profile.weightKg} kg`)
+  }
+  if (Array.isArray(profile.healthConditions) && profile.healthConditions.length > 0) {
+    lines.push(`- 既往健康情况: ${profile.healthConditions.join('、')}`)
   }
 
-  return Math.max(0, Math.min(10, Number(score.toFixed(1))))
-}
-
-function generateOverallAssessment(score: number, foodName: string) {
-  if (score >= 8) {
-    return `${foodName}整体健康程度优秀，配料相对天然，可以适量食用。`
-  }
-  if (score >= 6) {
-    return `${foodName}整体健康程度良好，大部分配料常见，建议关注糖和添加剂含量。`
-  }
-  if (score >= 4) {
-    return `${foodName}健康程度一般，部分成分需要留意，建议控制食用频率。`
+  if (lines.length === 0) {
+    return ''
   }
 
-  return `${foodName}健康程度偏低，加工成分较多，更适合作为偶尔食用的食品。`
-}
-
-function generateRecommendations(ingredients: string[], score: number) {
-  const suggestions = ['优先比较同类产品中配料表更短、原料更清晰的版本。']
-
-  if (ingredients.some(ingredient => ingredient.includes('糖'))) {
-    suggestions.push('如果正在控糖，建议搭配无糖饮品并减少一次性摄入量。')
-  }
-
-  if (ingredients.some(ingredient => ingredient.includes('防腐剂') || ingredient.includes('香精'))) {
-    suggestions.push('添加剂较多时，建议降低日常高频购买比例。')
-  }
-
-  if (score >= 8) {
-    suggestions.push('整体风险较低，但仍建议关注总能量和总脂肪。')
-  }
-
-  return suggestions.join(' ')
-}
-
-function buildMockCompliance(ingredients: string[]): ComplianceAnalysis {
-  const issues = ingredients.filter(ingredient =>
-    ['防腐剂', '香精', '甜味剂', '色素'].some(token => ingredient.includes(token))
-  )
-
-  return {
-    status: issues.length > 0 ? '待确认' : '合规',
-    description: issues.length > 0
-      ? '存在需要进一步核对标签宣称或使用范围的成分。'
-      : '未发现明显异常配料，整体更接近常见合规配方。',
-    issues
-  }
-}
-
-function buildMockProcessing(ingredients: string[]): ProcessingAnalysis {
-  const additiveCount = ingredients.filter(ingredient =>
-    ['添加剂', '香精', '甜味剂', '乳化剂', '防腐剂'].some(token => ingredient.includes(token))
-  ).length
-
-  if (additiveCount >= 3) {
-    return {
-      level: '高度加工',
-      description: '配方中存在多种风味或稳定性添加成分。',
-      score: 4.5
-    }
-  }
-
-  if (additiveCount >= 1) {
-    return {
-      level: '中度加工',
-      description: '存在一定加工痕迹，但仍保留主体原料信息。',
-      score: 3
-    }
-  }
-
-  return {
-    level: '轻度加工',
-    description: '配料结构相对简单，主体原料更明确。',
-    score: 1.8
-  }
-}
-
-function buildMockClaims(foodName: string): ClaimsAnalysis {
-  return {
-    detectedClaims: [],
-    supportedClaims: [],
-    questionableClaims: [],
-    assessment: `当前未检测到 ${foodName} 上下文中的明确宣传语，需要结合商品包装正面文案判断。`
-  }
-}
-
-function buildMockResult(ingredients: string[], productName: string): FoodAnalysisResult {
-  const foodName = productName || guessFoodName(ingredients)
-  const healthScore = calculateHealthScore(ingredients)
-
-  return {
-    foodName,
-    ingredients: ingredients.map(mockIngredientRecord),
-    healthScore,
-    compliance: buildMockCompliance(ingredients),
-    processing: buildMockProcessing(ingredients),
-    claims: buildMockClaims(foodName),
-    overallAssessment: generateOverallAssessment(healthScore, foodName),
-    recommendations: generateRecommendations(ingredients, healthScore),
-    analysisTime: new Date().toISOString()
-  }
+  return `以下是用户健康背景，请在评估中给出个性化饮食提醒（使用“建议/可能/需注意”，不要做医疗诊断）：\n${lines.join('\n')}`
 }
 
 function normalizeIngredientEntry(entry: unknown): IngredientAnalysis | null {
   if (typeof entry === 'string') {
-    return mockIngredientRecord(entry)
+    const ingredientName = entry.trim()
+    if (!ingredientName) {
+      return null
+    }
+
+    return {
+      ingredientName,
+      function: '',
+      nutritionalValue: '',
+      complianceStatus: '',
+      processingLevel: '',
+      remarks: '',
+      riskLevel: 'normal',
+      riskReason: '',
+      actionableAdvice: '',
+      negativeImpact: '',
+      isAdditive: false
+    }
   }
 
   if (!entry || typeof entry !== 'object') {
@@ -193,69 +111,165 @@ function normalizeIngredientEntry(entry: unknown): IngredientAnalysis | null {
     return null
   }
 
-  const fallback = mockIngredientRecord(ingredientName)
-
   return {
     ingredientName,
-    function: String(candidate.function ?? candidate.role ?? fallback.function),
-    nutritionalValue: String(candidate.nutritionalValue ?? candidate.nutrition ?? fallback.nutritionalValue),
-    complianceStatus: String(candidate.complianceStatus ?? candidate.compliance ?? candidate.status ?? fallback.complianceStatus),
-    processingLevel: String(candidate.processingLevel ?? candidate.processing ?? candidate.level ?? fallback.processingLevel),
-    remarks: String(candidate.remarks ?? candidate.note ?? candidate.notes ?? fallback.remarks)
+    function: String(candidate.function ?? candidate.role ?? '').trim(),
+    nutritionalValue: String(candidate.nutritionalValue ?? candidate.nutrition ?? '').trim(),
+    complianceStatus: String(candidate.complianceStatus ?? candidate.compliance ?? candidate.status ?? '').trim(),
+    processingLevel: String(candidate.processingLevel ?? candidate.processing ?? candidate.level ?? '').trim(),
+    remarks: String(candidate.remarks ?? candidate.note ?? candidate.notes ?? '').trim(),
+    riskLevel: normalizeRiskLevel(candidate.riskLevel ?? candidate.risk_level),
+    riskReason: String(candidate.riskReason ?? candidate.risk_reason ?? '').trim(),
+    actionableAdvice: String(candidate.actionableAdvice ?? candidate.actionable_advice ?? candidate.advice ?? '').trim(),
+    negativeImpact: String(candidate.negativeImpact ?? candidate.negative_impact ?? '').trim(),
+    isAdditive: typeof candidate.isAdditive === 'boolean'
+      ? candidate.isAdditive
+      : typeof candidate.is_additive === 'boolean'
+        ? candidate.is_additive
+        : false
   }
 }
 
-function normalizeIngredientRecords(input: unknown, ingredientLines: string[]) {
+function normalizeIngredientRecords(input: unknown) {
   if (Array.isArray(input)) {
-    const normalized = input
+    return input
       .map(entry => normalizeIngredientEntry(entry))
       .filter((entry): entry is IngredientAnalysis => Boolean(entry))
-
-    if (normalized.length > 0) {
-      return normalized
-    }
   }
 
-  return ingredientLines.map(mockIngredientRecord)
+  return []
 }
 
 export function normalizeFoodAnalysisResult(
   input: unknown,
-  ingredientLines: string[],
-  productName: string
+  _ingredientLines: string[],
+  fallback: {
+    foodName?: string
+    healthScore?: number
+    analysisTime?: string
+  } = {}
 ): FoodAnalysisResult {
-  const mock = buildMockResult(ingredientLines, productName)
-
-  if (!input || typeof input !== 'object') {
-    return mock
-  }
-
-  const data = input as PartialFoodAnalysisResult
+  const data = input && typeof input === 'object'
+    ? input as PartialFoodAnalysisResult
+    : {}
 
   return {
-    foodName: data.foodName ?? mock.foodName,
-    ingredients: normalizeIngredientRecords(data.ingredients, ingredientLines),
-    healthScore: typeof data.healthScore === 'number' ? data.healthScore : mock.healthScore,
+    foodName: typeof data.foodName === 'string' && data.foodName.trim()
+      ? data.foodName
+      : fallback.foodName ?? '',
+    ingredients: normalizeIngredientRecords(data.ingredients),
+    healthScore: typeof data.healthScore === 'number'
+      ? data.healthScore
+      : fallback.healthScore ?? 0,
     compliance: {
-      status: data.compliance?.status ?? mock.compliance.status,
-      description: data.compliance?.description ?? mock.compliance.description,
-      issues: Array.isArray(data.compliance?.issues) ? data.compliance.issues : mock.compliance.issues
+      status: typeof data.compliance?.status === 'string' ? data.compliance.status : '',
+      description: typeof data.compliance?.description === 'string' ? data.compliance.description : '',
+      issues: Array.isArray(data.compliance?.issues)
+        ? data.compliance.issues.map(item => String(item).trim()).filter(Boolean)
+        : []
     },
     processing: {
-      level: data.processing?.level ?? mock.processing.level,
-      description: data.processing?.description ?? mock.processing.description,
-      score: typeof data.processing?.score === 'number' ? data.processing.score : mock.processing.score
+      level: typeof data.processing?.level === 'string' ? data.processing.level : '',
+      description: typeof data.processing?.description === 'string' ? data.processing.description : '',
+      score: typeof data.processing?.score === 'number' ? data.processing.score : 0
     },
     claims: {
-      detectedClaims: Array.isArray(data.claims?.detectedClaims) ? data.claims.detectedClaims : mock.claims.detectedClaims,
-      supportedClaims: Array.isArray(data.claims?.supportedClaims) ? data.claims.supportedClaims : mock.claims.supportedClaims,
-      questionableClaims: Array.isArray(data.claims?.questionableClaims) ? data.claims.questionableClaims : mock.claims.questionableClaims,
-      assessment: data.claims?.assessment ?? mock.claims.assessment
+      detectedClaims: Array.isArray(data.claims?.detectedClaims)
+        ? data.claims.detectedClaims.map(item => String(item).trim()).filter(Boolean)
+        : [],
+      supportedClaims: Array.isArray(data.claims?.supportedClaims)
+        ? data.claims.supportedClaims.map(item => String(item).trim()).filter(Boolean)
+        : [],
+      questionableClaims: Array.isArray(data.claims?.questionableClaims)
+        ? data.claims.questionableClaims.map(item => String(item).trim()).filter(Boolean)
+        : [],
+      assessment: typeof data.claims?.assessment === 'string' ? data.claims.assessment : ''
     },
-    overallAssessment: data.overallAssessment ?? mock.overallAssessment,
-    recommendations: data.recommendations ?? mock.recommendations,
-    analysisTime: typeof data.analysisTime === 'string' ? data.analysisTime : mock.analysisTime
+    overallAssessment: typeof data.overallAssessment === 'string' ? data.overallAssessment : '',
+    recommendations: typeof data.recommendations === 'string' ? data.recommendations : '',
+    warnings: Array.isArray((data as FoodAnalysisResult).warnings)
+      ? (data as FoodAnalysisResult).warnings.map(item => String(item).trim()).filter(Boolean)
+      : [],
+    analysisTime: typeof data.analysisTime === 'string'
+      ? data.analysisTime
+      : fallback.analysisTime ?? new Date(0).toISOString()
   }
+}
+
+function normalizeRiskLevel(value: unknown): IngredientAnalysis['riskLevel'] {
+  const text = String(value ?? '').trim().toLowerCase()
+  if (text === 'additive' || text === 'caution') {
+    return text
+  }
+  return 'normal'
+}
+
+function extractJsonObject(response: string) {
+  const jsonStart = response.indexOf('{')
+  const jsonEnd = response.lastIndexOf('}') + 1
+
+  if (jsonStart === -1 || jsonEnd <= jsonStart) {
+    throw new Error('Model response does not contain valid JSON')
+  }
+
+  return JSON.parse(response.slice(jsonStart, jsonEnd)) as Record<string, unknown>
+}
+
+function parseQuickAnalysisResult(response: string) {
+  const data = extractJsonObject(response)
+  const healthScore = typeof data.healthScore === 'number'
+    ? data.healthScore
+    : Number(data.healthScore)
+  const processingScore = data.processing && typeof data.processing === 'object' && typeof (data.processing as Record<string, unknown>).score === 'number'
+    ? (data.processing as Record<string, unknown>).score as number
+    : Number((data.processing as Record<string, unknown> | undefined)?.score)
+
+  const foodName = String(data.foodName ?? '').trim()
+  if (!foodName) {
+    throw new Error('Quick analysis response is missing foodName')
+  }
+  if (!Number.isFinite(healthScore)) {
+    throw new Error('Quick analysis response is missing healthScore')
+  }
+  if (!Number.isFinite(processingScore)) {
+    throw new Error('Quick analysis response is missing processing.score')
+  }
+
+  const compliance = data.compliance && typeof data.compliance === 'object'
+    ? data.compliance as Record<string, unknown>
+    : {}
+  const processing = data.processing && typeof data.processing === 'object'
+    ? data.processing as Record<string, unknown>
+    : {}
+
+  return {
+    foodName,
+    healthScore,
+    overallAssessment: String(data.overallAssessment ?? '').trim(),
+    compliance: {
+      status: String(compliance.status ?? '').trim(),
+      description: String(compliance.description ?? '').trim()
+    },
+    processing: {
+      level: String(processing.level ?? '').trim(),
+      score: processingScore
+    },
+    recommendations: String(data.recommendations ?? '').trim()
+  } satisfies QuickAnalysisResult
+}
+
+function parseDetailedAnalysisResult(response: string, ingredientLines: string[]) {
+  const data = extractJsonObject(response)
+  const result = normalizeFoodAnalysisResult(data, ingredientLines)
+
+  if (!result.foodName.trim()) {
+    throw new Error('Detailed analysis response is missing foodName')
+  }
+  if (!result.ingredients.length) {
+    throw new Error('Detailed analysis response is missing ingredients')
+  }
+
+  return result
 }
 
 function resolveLlmConfig() {
@@ -284,46 +298,16 @@ function resolveLlmConfig() {
   return null
 }
 
-function parseAiResponse(response: string, ingredients: string[], productName: string) {
-  try {
-    const jsonStart = response.indexOf('{')
-    const jsonEnd = response.lastIndexOf('}') + 1
-
-    if (jsonStart === -1 || jsonEnd <= jsonStart) {
-      return buildMockResult(ingredients, productName)
-    }
-
-    const data = JSON.parse(response.slice(jsonStart, jsonEnd)) as PartialFoodAnalysisResult
-
-    return normalizeFoodAnalysisResult(data, ingredients, productName)
-  } catch {
-    return buildMockResult(ingredients, productName)
-  }
-}
-
 export async function analyzeQuickMetrics(
   ingredients: string[],
   productName: string,
+  userHealthProfile?: UserHealthProfileContext | null,
   timings?: TimingMap
 ): Promise<QuickAnalysisResult> {
   const llm = resolveLlmConfig()
 
   if (!llm) {
-    // Mock 模式
-    return {
-      foodName: productName || guessFoodName(ingredients),
-      healthScore: calculateHealthScore(ingredients),
-      overallAssessment: generateOverallAssessment(
-        calculateHealthScore(ingredients),
-        productName || guessFoodName(ingredients)
-      ),
-      compliance: buildMockCompliance(ingredients),
-      processing: buildMockProcessing(ingredients),
-      recommendations: generateRecommendations(
-        ingredients,
-        calculateHealthScore(ingredients)
-      )
-    }
+    throw new Error('LLM is not configured')
   }
 
   const systemPrompt = `你是食品营养快速评估师。快速返回 JSON，格式如下，不包含逐项配料分析：
@@ -336,7 +320,11 @@ export async function analyzeQuickMetrics(
   "recommendations": "一句建议"
 }`
 
-  const userPrompt = `快速评估产品 "${productName}" 的配料：${ingredients.join(', ')}。只返回 JSON，无其他文本。`
+  const healthPrompt = buildUserHealthContextPrompt(userHealthProfile)
+  const userPrompt = `快速评估产品 "${productName}" 的配料：${ingredients.join(', ')}。
+${healthPrompt || '无额外用户健康信息。'}
+如果未提供商品名称，请根据配料判断并返回一个准确、克制的食品名称或品类。
+在 overallAssessment 和 recommendations 中体现个性化提醒（如控糖、控盐等）。只返回 JSON，无其他文本。`
 
   const { signal, clear } = createTimeoutSignal()
 
@@ -379,40 +367,9 @@ export async function analyzeQuickMetrics(
       throw new Error('No content')
     }
 
-    const jsonStart = content.indexOf('{')
-    const jsonEnd = content.lastIndexOf('}') + 1
-    const data = JSON.parse(content.slice(jsonStart, jsonEnd)) as QuickAnalysisResult
-
-    return {
-      foodName: data.foodName ?? guessFoodName(ingredients),
-      healthScore: typeof data.healthScore === 'number' ? data.healthScore : calculateHealthScore(ingredients),
-      overallAssessment: data.overallAssessment ?? '',
-      compliance: {
-        status: data.compliance?.status ?? '待确认',
-        description: data.compliance?.description ?? ''
-      },
-      processing: {
-        level: data.processing?.level ?? '中度加工',
-        score: typeof data.processing?.score === 'number' ? data.processing.score : 3
-      },
-      recommendations: data.recommendations ?? ''
-    }
-  } catch {
-    // fallback 到 mock
-    return {
-      foodName: productName || guessFoodName(ingredients),
-      healthScore: calculateHealthScore(ingredients),
-      overallAssessment: generateOverallAssessment(
-        calculateHealthScore(ingredients),
-        productName || guessFoodName(ingredients)
-      ),
-      compliance: buildMockCompliance(ingredients),
-      processing: buildMockProcessing(ingredients),
-      recommendations: generateRecommendations(
-        ingredients,
-        calculateHealthScore(ingredients)
-      )
-    }
+    return parseQuickAnalysisResult(content)
+  } catch (error) {
+    throw new Error(`Quick analysis failed: ${error instanceof Error ? error.message : String(error)}`)
   } finally {
     clear()
   }
@@ -421,12 +378,13 @@ export async function analyzeQuickMetrics(
 export async function analyzeIngredients(
   ingredients: string[],
   productName: string,
+  userHealthProfile?: UserHealthProfileContext | null,
   timings?: TimingMap
 ) {
   const llm = resolveLlmConfig()
 
   if (!llm) {
-    return buildMockResult(ingredients, productName)
+    throw new Error('LLM is not configured')
   }
 
   const systemPrompt = `你是一个食品营养分析师。请分析配料并返回 JSON，格式如下：
@@ -438,11 +396,34 @@ export async function analyzeIngredients(
   "claims": {"detectedClaims": [], "supportedClaims": [], "questionableClaims": [], "assessment": "评估"},
   "overallAssessment": "总体评价",
   "recommendations": "建议",
-  "ingredients": [{"ingredientName": "名称", "function": "作用", "nutritionalValue": "营养", "complianceStatus": "合规性", "processingLevel": "加工度", "remarks": "备注"}]
+  "warnings": ["最多 3 条真正有用的提醒，聚焦负面影响和规避建议，没有就返回 []"],
+  "ingredients": [{
+    "ingredientName": "名称",
+    "function": "作用",
+    "nutritionalValue": "营养",
+    "complianceStatus": "合规性",
+    "processingLevel": "加工度",
+    "remarks": "补充说明，没有可空字符串",
+    "riskLevel": "normal/additive/caution",
+    "riskReason": "为什么这样判断",
+    "actionableAdvice": "针对用户可执行的建议，没有则空字符串",
+    "negativeImpact": "可能的不良影响，没有则空字符串",
+    "isAdditive": true
+  }]
 }`
 
+  const healthPrompt = buildUserHealthContextPrompt(userHealthProfile)
   const userPrompt = `分析产品 "${productName}" 的配料：${ingredients.join(', ')}。
-请从合规性、加工度、宣称三个维度分析，只返回 JSON。`
+${healthPrompt || '无额外用户健康信息。'}
+请从合规性、加工度、宣称三个维度分析，并结合用户背景给出个性化建议。
+要求：
+1. 不要用前端再猜测风险，必须为每个配料明确给出 riskLevel、riskReason、actionableAdvice、negativeImpact、isAdditive。
+2. 如果某个配料属于食品添加剂，请将 isAdditive 设为 true，riskLevel 至少为 additive。
+3. 如果某个配料可能带来额外健康负担、摄入风险、或不适合特定人群，请将 riskLevel 设为 caution，并写清 negativeImpact 与 actionableAdvice。
+4. warnings 只保留真正有用的负面提醒与规避建议，最多 3 条；没有就返回空数组。
+5. 请基于食品配料与食品添加剂的通行定义判断 isAdditive，不要仅凭“甜”“咸”“看起来像加工原料”做机械归类。
+6. 如果未提供商品名称，请根据配料判断并返回一个准确、克制的食品名称或品类。
+只返回 JSON。`
 
   const { signal, clear } = createTimeoutSignal()
 
@@ -479,23 +460,23 @@ export async function analyzeIngredients(
     recordTiming(timings ?? {}, 'ai.read_response', Date.now() - parseStartedAt)
 
     if (!response.ok) {
-      return buildMockResult(ingredients, productName)
+      throw new Error(`Detailed analysis API error: ${response.status}`)
     }
 
     const content = payload.choices?.[0]?.message?.content
     if (!content) {
-      return buildMockResult(ingredients, productName)
+      throw new Error('Detailed analysis response is empty')
     }
 
     const normalizeStartedAt = Date.now()
-    const result = parseAiResponse(content, ingredients, productName)
+    const result = parseDetailedAnalysisResult(content, ingredients)
     recordTiming(timings ?? {}, 'ai.parse_json', Date.now() - normalizeStartedAt, {
       contentChars: content.length
     })
 
     return result
-  } catch {
-    return buildMockResult(ingredients, productName)
+  } catch (error) {
+    throw new Error(`Detailed analysis failed: ${error instanceof Error ? error.message : String(error)}`)
   } finally {
     clear()
   }

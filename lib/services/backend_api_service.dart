@@ -26,34 +26,72 @@ class BackendApiService {
   }
 
   Future<Map<String, String>> _authorizedHeaders() async {
-    final token = _authService.currentSession?.accessToken;
+    final session = await _authService.getValidSession();
+    final token = session?.accessToken;
 
     if (token == null || token.isEmpty) {
       throw Exception('当前未登录，请重新登录后再试');
     }
 
-    return {
-      'Authorization': 'Bearer $token',
-    };
+    return {'Authorization': 'Bearer $token'};
+  }
+
+  FoodAnalysisResult _buildQuickAnalysisResult(
+    Map<String, dynamic> quickResult, {
+    String? analysisId,
+  }) {
+    final compliance = Map<String, dynamic>.from(
+      (quickResult['compliance'] as Map?) ?? const {},
+    );
+    final processing = Map<String, dynamic>.from(
+      (quickResult['processing'] as Map?) ?? const {},
+    );
+
+    return FoodAnalysisResult(
+      foodName: quickResult['foodName']?.toString() ?? '',
+      ingredients: [], // 初始为空，稍后轮询填充
+      healthScore: (quickResult['healthScore'] as num?)?.toDouble() ?? 0.0,
+      compliance: ComplianceAnalysis(
+        status: compliance['status']?.toString() ?? '',
+        description: compliance['description']?.toString() ?? '',
+        issues: const [],
+      ),
+      processing: ProcessingAnalysis(
+        level: processing['level']?.toString() ?? '',
+        description: processing['description']?.toString() ?? '',
+        score: (processing['score'] as num?)?.toDouble() ?? 1.0,
+      ),
+      claims: ClaimsAnalysis(
+        detectedClaims: const [],
+        supportedClaims: const [],
+        questionableClaims: const [],
+        assessment: '',
+      ),
+      overallAssessment: quickResult['overallAssessment']?.toString() ?? '',
+      recommendations: quickResult['recommendations']?.toString() ?? '',
+      analysisTime: DateTime.now(),
+      analysisId: analysisId,
+    );
   }
 
   Future<FoodAnalysisResult> analyzeImage(
     XFile image, {
     String? productName,
+    Map<String, dynamic>? userHealthProfile,
   }) async {
     if (!ApiConfig.isBackendConfigured) {
       throw Exception('BACKEND_API_URL 未配置');
     }
 
-    final request = http.MultipartRequest(
-      'POST',
-      _buildUri('/api/analysis'),
-    );
+    final request = http.MultipartRequest('POST', _buildUri('/api/analysis'));
 
     request.headers.addAll(await _authorizedHeaders());
 
     if (productName != null && productName.trim().isNotEmpty) {
       request.fields['productName'] = productName.trim();
+    }
+    if (userHealthProfile != null && userHealthProfile.isNotEmpty) {
+      request.fields['userHealthProfile'] = jsonEncode(userHealthProfile);
     }
 
     request.files.add(
@@ -73,41 +111,25 @@ class BackendApiService {
     }
 
     // 处理新的两阶段响应格式
-    final quickResult = payload['quick'] as Map<String, dynamic>?;
+    final quickResultRaw = payload['quick'];
+    final quickResult = quickResultRaw is Map
+        ? Map<String, dynamic>.from(quickResultRaw)
+        : null;
+    final analysisId = payload['id']?.toString();
     if (quickResult == null) {
       throw Exception('API 返回数据格式错误');
     }
 
-    // 将快速结果转换为完整的 FoodAnalysisResult
-    return FoodAnalysisResult(
-      foodName: quickResult['foodName'] ?? '',
-      ingredients: [], // 初始为空，稍后轮询填充
-      healthScore: (quickResult['healthScore'] as num?)?.toDouble() ?? 0.0,
-      compliance: ComplianceAnalysis(
-        status: (quickResult['compliance'] as Map?)?['status'] ?? '',
-        description: (quickResult['compliance'] as Map?)?['description'] ?? '',
-        issues: [],
-      ),
-      processing: ProcessingAnalysis(
-        level: (quickResult['processing'] as Map?)?['level'] ?? '',
-        description: (quickResult['processing'] as Map?)?['description'] ?? '',
-        score: ((quickResult['processing'] as Map?)?['score'] as num?)?.toDouble() ?? 1.0,
-      ),
-      claims: ClaimsAnalysis(
-        detectedClaims: [],
-        supportedClaims: [],
-        questionableClaims: [],
-        assessment: '详细分析生成中...',
-      ),
-      overallAssessment: quickResult['overallAssessment'] ?? '',
-      recommendations: quickResult['recommendations'] ?? '',
-      analysisTime: DateTime.now().toIso8601String(),
+    return _buildQuickAnalysisResult(
+      quickResult,
+      analysisId: analysisId, // 存储 ID 以便后续轮询
     );
   }
 
   Future<FoodAnalysisResult> analyzeIngredientsText(
     String ingredientsText, {
     String? productName,
+    Map<String, dynamic>? userHealthProfile,
   }) async {
     if (!ApiConfig.isBackendConfigured) {
       throw Exception('BACKEND_API_URL 未配置');
@@ -121,7 +143,10 @@ class BackendApiService {
       },
       body: jsonEncode({
         'ingredientsText': ingredientsText,
-        if (productName != null && productName.trim().isNotEmpty) 'productName': productName.trim(),
+        if (productName != null && productName.trim().isNotEmpty)
+          'productName': productName.trim(),
+        if (userHealthProfile != null && userHealthProfile.isNotEmpty)
+          'userHealthProfile': userHealthProfile,
       }),
     );
 
@@ -132,35 +157,18 @@ class BackendApiService {
     }
 
     // 处理新的两阶段响应格式
-    final quickResult = payload['quick'] as Map<String, dynamic>?;
+    final quickResultRaw = payload['quick'];
+    final quickResult = quickResultRaw is Map
+        ? Map<String, dynamic>.from(quickResultRaw)
+        : null;
+    final analysisId = payload['id']?.toString();
     if (quickResult == null) {
       throw Exception('API 返回数据格式错误');
     }
 
-    // 将快速结果转换为完整的 FoodAnalysisResult
-    return FoodAnalysisResult(
-      foodName: quickResult['foodName'] ?? '',
-      ingredients: [], // 初始为空，稍后轮询填充
-      healthScore: (quickResult['healthScore'] as num?)?.toDouble() ?? 0.0,
-      compliance: ComplianceAnalysis(
-        status: (quickResult['compliance'] as Map?)?['status'] ?? '',
-        description: (quickResult['compliance'] as Map?)?['description'] ?? '',
-        issues: [],
-      ),
-      processing: ProcessingAnalysis(
-        level: (quickResult['processing'] as Map?)?['level'] ?? '',
-        description: (quickResult['processing'] as Map?)?['description'] ?? '',
-        score: ((quickResult['processing'] as Map?)?['score'] as num?)?.toDouble() ?? 1.0,
-      ),
-      claims: ClaimsAnalysis(
-        detectedClaims: [],
-        supportedClaims: [],
-        questionableClaims: [],
-        assessment: '详细分析生成中...',
-      ),
-      overallAssessment: quickResult['overallAssessment'] ?? '',
-      recommendations: quickResult['recommendations'] ?? '',
-      analysisTime: DateTime.now().toIso8601String(),
+    return _buildQuickAnalysisResult(
+      quickResult,
+      analysisId: analysisId, // 存储 ID 以便后续轮询
     );
   }
 
@@ -170,9 +178,7 @@ class BackendApiService {
     }
 
     final response = await http.get(
-      _buildUri('/api/history', {
-        'limit': '$limit',
-      }),
+      _buildUri('/api/history', {'limit': '$limit'}),
       headers: await _authorizedHeaders(),
     );
 
@@ -184,7 +190,11 @@ class BackendApiService {
 
     final items = payload['items'] as List<dynamic>? ?? [];
     return items
-        .map((item) => AnalysisHistoryItem.fromMap(Map<String, dynamic>.from(item as Map)))
+        .map(
+          (item) => AnalysisHistoryItem.fromMap(
+            Map<String, dynamic>.from(item as Map),
+          ),
+        )
         .toList();
   }
 
@@ -204,4 +214,30 @@ class BackendApiService {
     }
   }
 
+  // 获取单个分析结果的详情（用于轮询）
+  Future<FoodAnalysisResult> getAnalysisResult(String analysisId) async {
+    if (!ApiConfig.isBackendConfigured) {
+      throw Exception('BACKEND_API_URL 未配置');
+    }
+
+    final response = await http.get(
+      _buildUri('/api/analysis/$analysisId'),
+      headers: await _authorizedHeaders(),
+    );
+
+    final payload = jsonDecode(response.body) as Map<String, dynamic>;
+
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw Exception(payload['statusMessage']?.toString() ?? '获取分析结果失败');
+    }
+
+    // API 返回 AnalysisHistoryItem 格式
+    final payloadResult = payload['result'];
+    final result = payloadResult is Map
+        ? Map<String, dynamic>.from(payloadResult)
+        : Map<String, dynamic>.from(payload);
+
+    result['analysisId'] = result['analysisId'] ?? payload['id'] ?? analysisId;
+    return FoodAnalysisResult.fromMap(result);
+  }
 }

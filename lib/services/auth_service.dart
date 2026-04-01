@@ -20,6 +20,31 @@ class AuthService {
 
   Stream<AuthState> get authStateChanges => _auth.onAuthStateChange;
 
+  Future<Session?> getValidSession({bool forceRefresh = false}) async {
+    if (!isConfigured) return null;
+
+    final session = _auth.currentSession;
+    if (session == null) {
+      return null;
+    }
+
+    if (!forceRefresh && !session.isExpired) {
+      return session;
+    }
+
+    try {
+      final refreshed = await _auth.refreshSession();
+      return refreshed.session;
+    } catch (_) {
+      await _auth.signOut();
+      return null;
+    }
+  }
+
+  Future<bool> hasValidSession() async {
+    return await getValidSession() != null;
+  }
+
   Future<AuthResponse> signIn({
     required String email,
     required String password,

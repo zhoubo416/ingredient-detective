@@ -1,4 +1,5 @@
 import type { AnalysisHistoryItem } from '~/shared/analysis'
+import type { AnalysisSourceType } from '~/shared/analysis'
 import { normalizeFoodAnalysisResult } from '~/server/utils/analysis'
 import { getSupabaseAdminClient, requireApiUser } from '~/server/utils/supabase'
 
@@ -8,14 +9,18 @@ function mapHistoryRow(row: Record<string, unknown>): AnalysisHistoryItem {
 
   return {
     id: String(row.id),
-    sourceType: row.source_type as string,
+    sourceType: row.source_type as AnalysisSourceType,
     imageFilename: row.image_filename ? String(row.image_filename) : null,
     ingredientLines,
     rawOcrText: row.raw_ocr_text ? String(row.raw_ocr_text) : null,
     foodName,
     healthScore: Number(row.health_score ?? 0),
     createdAt: String(row.created_at),
-    result: normalizeFoodAnalysisResult(row.result, ingredientLines, foodName)
+    result: normalizeFoodAnalysisResult(row.result, ingredientLines, {
+      foodName,
+      healthScore: Number(row.health_score ?? 0),
+      analysisTime: String(row.created_at)
+    })
   }
 }
 

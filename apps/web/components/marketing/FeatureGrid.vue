@@ -1,24 +1,39 @@
 <script setup lang="ts">
-const features = [
+const scenarios = [
   {
-    title: '登录后才能调用分析能力',
-    description: '用 Supabase Auth 统一身份。匿名访客只能浏览官网，不能直接消耗 OCR 和 AI 资源。',
-    icon: 'i-lucide-lock-keyhole'
+    title: '控糖或减脂人群',
+    description: '一眼识别高糖、高能量、风味型乳制品等“看起来健康”的陷阱。',
+    icon: 'i-lucide-activity'
   },
   {
-    title: '识别与分析迁到后端',
-    description: 'OCR 签名、DeepSeek 调用和结果存储都由 Nuxt server API 执行，敏感密钥不再暴露在客户端。',
-    icon: 'i-lucide-server-cog'
+    title: '有孩子的家庭',
+    description: '买零食、酸奶、早餐食品时，快速判断配料是否复杂、是否含过多添加剂。',
+    icon: 'i-lucide-baby'
   },
   {
-    title: 'Supabase 承载用户与数据',
-    description: '分析结果按用户入库，支持 RLS，天然适合后续扩展为多端共用历史记录。',
-    icon: 'i-lucide-database-zap'
+    title: '慢病和饮食管理',
+    description: '对高盐、高糖、重加工食品更敏感，能结合个人情况给出更谨慎的提醒。',
+    icon: 'i-lucide-heart-pulse'
   },
   {
-    title: '官网和产品后台一体化',
-    description: '营销首页、登录入口、用户后台和 API 在一个 Nuxt 工程里完成，减少部署和维护分裂。',
-    icon: 'i-lucide-layout-dashboard'
+    title: '长期记录与复盘',
+    description: '把每次分析自动沉淀为历史记录，对比同类产品，建立自己的饮食判断标准。',
+    icon: 'i-lucide-history'
+  }
+] as const
+
+const trustPoints = [
+  {
+    title: '不是只识别文字',
+    description: '重点不在 OCR 本身，而在“识别之后能给你什么判断”。'
+  },
+  {
+    title: '逐项解释配料作用',
+    description: '每个配料都给出作用和影响，不再只是简单罗列名称。'
+  },
+  {
+    title: '支持历史追踪',
+    description: '同一账号下自动留存记录，方便长期比较和复盘。'
   }
 ] as const
 </script>
@@ -26,37 +41,57 @@ const features = [
 <template>
   <section class="pb-20">
     <UContainer class="space-y-10">
-      <div class="max-w-3xl space-y-4">
+      <div class="mx-auto max-w-3xl space-y-4 text-center reveal-up">
         <span class="eyebrow">
-          <UIcon name="i-lucide-sparkles" />
-          产品能力
+          <UIcon name="i-lucide-users" />
+          产品价值
         </span>
-        <h2 class="section-title text-4xl">你要加的三件事，现在在同一套架构里闭环</h2>
+        <h2 class="section-title text-4xl">不是给专业人士看的工具，而是给真实消费者的决策助手</h2>
         <p class="section-copy">
-          网站负责展示和承接流量，登录负责控制使用权限，后台负责真正执行识别与分析。
-          这样 Flutter、Web 和未来的管理端都能共享同一套服务能力。
+          你不需要懂食品工程，也不需要逐条查配料。拍照后就能知道风险点、加工度和是否适合自己。
         </p>
       </div>
 
-      <div class="grid gap-5 lg:grid-cols-2">
+      <div class="grid gap-5 md:grid-cols-2">
         <UCard
-          v-for="feature in features"
-          :key="feature.title"
-          class="glass-panel rounded-[1.75rem]"
+          v-for="scenario in scenarios"
+          :key="scenario.title"
+          class="feature-card reveal-up"
         >
           <template #header>
             <div class="flex items-center gap-4">
-              <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-700 text-xl text-white">
-                <UIcon :name="feature.icon" />
+              <div class="feature-icon text-xl">
+                <UIcon :name="scenario.icon" />
               </div>
-              <h3 class="text-xl font-semibold text-slate-900">{{ feature.title }}</h3>
+              <h3 class="text-xl font-semibold text-slate-900">{{ scenario.title }}</h3>
             </div>
           </template>
 
           <p class="section-copy text-base">
-            {{ feature.description }}
+            {{ scenario.description }}
           </p>
         </UCard>
+      </div>
+
+      <div class="highlight-panel reveal-up p-6 sm:p-8">
+        <div class="max-w-2xl">
+          <span class="eyebrow">
+            <UIcon name="i-lucide-shield-check" />
+            为什么更可信
+          </span>
+          <h3 class="mt-4 text-3xl font-semibold text-slate-900">用户真正需要的不是配料表翻译，而是购买建议</h3>
+        </div>
+
+        <div class="trust-grid mt-6">
+          <div
+            v-for="point in trustPoints"
+            :key="point.title"
+            class="scenario-card p-5"
+          >
+            <p class="text-lg font-semibold text-slate-900">{{ point.title }}</p>
+            <p class="mt-2 text-sm leading-6 text-slate-600">{{ point.description }}</p>
+          </div>
+        </div>
       </div>
     </UContainer>
   </section>

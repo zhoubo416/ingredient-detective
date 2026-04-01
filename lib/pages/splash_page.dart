@@ -16,17 +16,21 @@ class _SplashPageState extends State<SplashPage> {
   @override
   void initState() {
     super.initState();
-    // 延迟后判断登录状态
-    Future.delayed(const Duration(seconds: 1), () {
-      if (mounted) {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (context) => _authService.isSignedIn ? const HomePage() : const LoginPage(),
-          ),
-        );
-      }
-    });
+    _resolveInitialRoute();
+  }
+
+  Future<void> _resolveInitialRoute() async {
+    await Future.delayed(const Duration(seconds: 1));
+    final hasValidSession = await _authService.hasValidSession();
+
+    if (!mounted) return;
+
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (context) => hasValidSession ? const HomePage() : const LoginPage(),
+      ),
+    );
   }
 
   @override

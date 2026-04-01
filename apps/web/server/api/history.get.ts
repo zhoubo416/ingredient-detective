@@ -16,7 +16,11 @@ function mapHistoryRow(row: Record<string, unknown>): AnalysisHistoryItem {
     foodName,
     healthScore: Number(row.health_score ?? 0),
     createdAt: String(row.created_at),
-    result: normalizeFoodAnalysisResult(row.result, ingredientLines, foodName)
+    result: normalizeFoodAnalysisResult(row.result, ingredientLines, {
+      foodName,
+      healthScore: Number(row.health_score ?? 0),
+      analysisTime: String(row.created_at)
+    })
   }
 }
 

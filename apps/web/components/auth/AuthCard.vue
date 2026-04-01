@@ -1,4 +1,5 @@
 <script setup lang="ts">
+const user = useSupabaseUser()
 const route = useRoute()
 const { signIn, signUp, resendSignupConfirmation, requestPasswordReset } = useAuthActions()
 const {
@@ -14,6 +15,19 @@ const password = ref('')
 const pending = ref(false)
 const errorMessage = ref('')
 const successMessage = ref('')
+const redirectTarget = ref('')
+
+watch(
+  () => [user.value, redirectTarget.value, pending.value] as const,
+  async ([currentUser, target, isPending]) => {
+    if (!currentUser || !target || isPending) {
+      return
+    }
+
+    redirectTarget.value = ''
+    await navigateTo(target)
+  }
+)
 
 async function handleResendConfirmation() {
   if (!email.value) {
@@ -65,14 +79,16 @@ async function handleSubmit() {
   try {
     if (mode.value === 'signin') {
       await signIn(email.value, password.value)
-      await navigateTo((route.query.redirect as string) || '/dashboard')
+      const target = (route.query.redirect as string) || '/dashboard'
+
+      redirectTarget.value = target
       return
     }
 
     const data = await signUp(email.value, password.value)
 
     if (data.session) {
-      await navigateTo('/dashboard')
+      redirectTarget.value = '/dashboard'
       return
     }
 
@@ -147,17 +163,40 @@ async function handleSubmit() {
       <form class="space-y-4" @submit.prevent="handleSubmit">
         <div class="space-y-2">
           <label class="text-sm font-medium text-slate-700" for="email">邮箱</label>
-          <UInput id="email" v-model="email" type="email" size="xl" placeholder="name@example.com" required />
+          <UInput
+            id="email"
+            v-model="email"
+            class="w-full"
+            type="email"
+            size="xl"
+            placeholder="name@example.com"
+            required
+          />
         </div>
 
         <div class="space-y-2">
           <label class="text-sm font-medium text-slate-700" for="password">密码</label>
-          <UInput id="password" v-model="password" type="password" size="xl" placeholder="至少 6 位" required />
+          <UInput
+            id="password"
+            v-model="password"
+            class="w-full"
+            type="password"
+            size="xl"
+            placeholder="至少 6 位"
+            required
+          />
         </div>
 
         <UButton type="submit" size="xl" block :loading="pending">
           {{ mode === 'signin' ? '登录并进入后台' : '创建账号' }}
         </UButton>
+
+        <p class="text-xs leading-6 text-slate-500">
+          {{ mode === 'signin' ? '继续登录即表示你已阅读并同意' : '注册即表示你已阅读并同意' }}
+          <NuxtLink class="apple-link" to="/terms">《用户协议》</NuxtLink>
+          与
+          <NuxtLink class="apple-link" to="/privacy-policy">《隐私政策》</NuxtLink>
+        </p>
 
         <div class="flex flex-wrap gap-3 text-sm">
           <UButton
