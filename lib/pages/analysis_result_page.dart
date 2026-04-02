@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_markdown/flutter_markdown.dart';
 
 import '../models/ingredient_analysis.dart';
 import '../services/backend_api_service.dart';
+import 'login_page.dart';
 
 class AnalysisResultPage extends StatefulWidget {
   final FoodAnalysisResult? analysisResult;
@@ -31,7 +33,9 @@ class _AnalysisResultPageState extends State<AnalysisResultPage> {
 
   bool get _needsPolling =>
       !widget.isFromHistory &&
-      !_hasIngredients &&
+      _result.detailedStatus != 'failed' &&
+      _result.detailedStatus != 'complete' &&
+      _result.rawMarkdown.isEmpty &&
       (_result.analysisId?.isNotEmpty ?? false);
 
   @override
@@ -59,6 +63,7 @@ class _AnalysisResultPageState extends State<AnalysisResultPage> {
       overallAssessment: quick.overallAssessment,
       recommendations: '',
       warnings: const [],
+      detailedStatus: 'pending',
       analysisTime: quick.createdAt,
     );
   }
@@ -95,8 +100,19 @@ class _AnalysisResultPageState extends State<AnalysisResultPage> {
       warnings: incoming.warnings.isNotEmpty
           ? incoming.warnings
           : current.warnings,
+      // 总是使用来自服务器的最新状态（优先完成/失败，再考虑待定）
+      detailedStatus: incoming.detailedStatus != 'pending'
+          ? incoming.detailedStatus
+          : current.detailedStatus,
+      // 总是优先使用来自服务器的错误信息（如果存在）
+      detailedError: incoming.detailedError.trim().isNotEmpty
+          ? incoming.detailedError
+          : current.detailedError,
       analysisTime: incoming.analysisTime,
       analysisId: incoming.analysisId ?? current.analysisId,
+      rawMarkdown: incoming.rawMarkdown.trim().isNotEmpty
+          ? incoming.rawMarkdown
+          : current.rawMarkdown,
     );
   }
 
@@ -131,9 +147,13 @@ class _AnalysisResultPageState extends State<AnalysisResultPage> {
             _pollError = null;
           });
 
-          if (_result.ingredients.isNotEmpty) {
+          if (_result.detailedStatus == 'complete' || _result.detailedStatus == 'failed' || _result.rawMarkdown.isNotEmpty) {
             return;
           }
+        } on UnauthorizedException {
+          if (!mounted) return;
+          _navigateToLogin();
+          return;
         } catch (e) {
           if (!mounted) return;
           setState(() {
@@ -163,12 +183,22 @@ class _AnalysisResultPageState extends State<AnalysisResultPage> {
         _result = _mergeResult(_result, updated);
         _pollError = null;
       });
+    } on UnauthorizedException {
+      if (!mounted) return;
+      _navigateToLogin();
     } catch (e) {
       if (!mounted) return;
       setState(() {
         _pollError = e.toString();
       });
     }
+  }
+
+  void _navigateToLogin() {
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (context) => const LoginPage()),
+      (route) => false,
+    );
   }
 
   String _reportMarkdown() {
@@ -185,6 +215,14 @@ class _AnalysisResultPageState extends State<AnalysisResultPage> {
       buffer
         ..writeln('## 轮询状态')
         ..writeln('- 最近一次刷新错误: ${_pollError!.trim()}')
+        ..writeln();
+    }
+
+    if (_result.detailedStatus == 'failed' &&
+        _result.detailedError.trim().isNotEmpty) {
+      buffer
+        ..writeln('## 详细分析状态')
+        ..writeln('- 详细配料分析失败: ${_result.detailedError.trim()}')
         ..writeln();
     }
 
@@ -812,7 +850,27 @@ class _AnalysisResultPageState extends State<AnalysisResultPage> {
             ],
           ),
           const SizedBox(height: 16),
-          if (_hasIngredients)
+          if (_result.rawMarkdown.isNotEmpty)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF7FAF7),
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: const Color(0xFFE1ECE3)),
+              ),
+              child: MarkdownBody(
+                data: _result.rawMarkdown,
+                styleSheet: MarkdownStyleSheet(
+                  h1: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1F2937)),
+                  h2: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: Color(0xFF374151)),
+                  h3: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Color(0xFF4B5563)),
+                  p: const TextStyle(fontSize: 13, height: 1.6, color: Color(0xFF4B5563)),
+                  listBullet: const TextStyle(fontSize: 13, color: Color(0xFF4B5563)),
+                ),
+              ),
+            )
+          else if (_hasIngredients)
             ...List.generate(
               _visibleIngredients.length,
               (index) =>
@@ -858,13 +916,24 @@ class _AnalysisResultPageState extends State<AnalysisResultPage> {
   }
 
   Widget _buildPollingNotice() {
-    final color = _pollError == null
-        ? const Color(0xFF2563EB)
-        : const Color(0xFFC73535);
-    final title = _pollError == null ? '正在补充详细配料分析' : '详细结果刷新异常';
-    final content = _pollError == null
-        ? '系统已经返回初步结论，正在继续补全每个配料的作用分析。你可以停留在此页等待，也可以手动刷新。'
-        : '最近一次刷新没有成功，但不会影响已展示的结果。可以稍后再次刷新。';
+    final hasFailure = _result.detailedStatus == 'failed';
+    final color = hasFailure
+        ? const Color(0xFFC73535)
+        : _pollError == null
+            ? const Color(0xFF2563EB)
+            : const Color(0xFFC73535);
+    final title = hasFailure
+        ? '详细分析生成失败'
+        : _pollError == null
+            ? '正在补充详细配料分析'
+            : '详细结果刷新异常';
+    final content = hasFailure
+        ? (_result.detailedError.trim().isNotEmpty
+              ? _result.detailedError.trim()
+              : '模型没有返回可用的结构化结果，请重新发起分析。')
+        : _pollError == null
+            ? '系统已经返回初步结论，正在继续补全每个配料的作用分析。你可以停留在此页等待，也可以手动刷新。'
+            : '最近一次刷新没有成功，但不会影响已展示的结果。可以稍后再次刷新。';
 
     return Container(
       padding: const EdgeInsets.all(18),
@@ -886,7 +955,9 @@ class _AnalysisResultPageState extends State<AnalysisResultPage> {
                   borderRadius: BorderRadius.circular(14),
                 ),
                 child: Icon(
-                  _pollError == null
+                  hasFailure
+                      ? Icons.error_outline_rounded
+                      : _pollError == null
                       ? Icons.hourglass_top_rounded
                       : Icons.error_outline_rounded,
                   color: color,
@@ -916,9 +987,25 @@ class _AnalysisResultPageState extends State<AnalysisResultPage> {
           ),
           const SizedBox(height: 14),
           FilledButton.tonalIcon(
-            onPressed: _isPolling ? null : _startPolling,
-            icon: Icon(_isPolling ? Icons.sync : Icons.refresh_rounded),
-            label: Text(_isPolling ? '生成中' : '刷新详细结果'),
+            onPressed: _isPolling
+                ? null
+                : hasFailure
+                    ? _refreshResult
+                    : _startPolling,
+            icon: Icon(
+              _isPolling
+                  ? Icons.sync
+                  : hasFailure
+                      ? Icons.restart_alt_rounded
+                      : Icons.refresh_rounded,
+            ),
+            label: Text(
+              _isPolling
+                  ? '生成中'
+                  : hasFailure
+                      ? '重新获取结果'
+                      : '刷新详细结果',
+            ),
             style: FilledButton.styleFrom(
               foregroundColor: const Color(0xFF1D4ED8),
               backgroundColor: const Color(0xFFEFF6FF),

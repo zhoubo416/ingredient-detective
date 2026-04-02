@@ -168,8 +168,11 @@ class FoodAnalysisResult {
   final String overallAssessment;
   final String recommendations;
   final List<String> warnings;
+  final String detailedStatus; // pending/complete/failed
+  final String detailedError;
   final DateTime analysisTime;
   final String? analysisId; // 用于轮询获取更新
+  final String rawMarkdown; // 原始 LLM 返回的 Markdown
 
   FoodAnalysisResult({
     required this.foodName,
@@ -181,8 +184,11 @@ class FoodAnalysisResult {
     required this.overallAssessment,
     required this.recommendations,
     this.warnings = const [],
+    this.detailedStatus = 'pending',
+    this.detailedError = '',
     required this.analysisTime,
     this.analysisId,
+    this.rawMarkdown = '',
   });
 
   Map<String, dynamic> toMap() {
@@ -198,8 +204,11 @@ class FoodAnalysisResult {
       'overallAssessment': overallAssessment,
       'recommendations': recommendations,
       'warnings': warnings,
+      'detailedStatus': detailedStatus,
+      'detailedError': detailedError,
       'analysisTime': analysisTime.toIso8601String(),
       'analysisId': analysisId,
+      'rawMarkdown': rawMarkdown,
     };
   }
 
@@ -227,12 +236,19 @@ class FoodAnalysisResult {
       ),
       recommendations: _asString(input['recommendations']),
       warnings: _asStringList(input['warnings']),
+      detailedStatus: _normalizeDetailedStatus(
+        input['detailedStatus'] ?? input['detailed_status'],
+      ),
+      detailedError: _asString(
+        input['detailedError'] ?? input['detailed_error'],
+      ),
       analysisTime: _asDateTime(
         input['analysisTime'] ?? input['analysis_time'],
       ),
       analysisId: _asNullableString(
         input['analysisId'] ?? map['id'] ?? input['analysis_id'],
       ),
+      rawMarkdown: _asString(input['rawMarkdown'] ?? input['raw_markdown']),
     );
   }
 
@@ -404,5 +420,17 @@ String _normalizeRiskLevel(dynamic value) {
       return text;
     default:
       return 'normal';
+  }
+}
+
+String _normalizeDetailedStatus(dynamic value) {
+  final text = _asString(value, 'pending').toLowerCase();
+  switch (text) {
+    case 'complete':
+    case 'failed':
+    case 'pending':
+      return text;
+    default:
+      return 'pending';
   }
 }

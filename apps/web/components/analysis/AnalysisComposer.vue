@@ -112,7 +112,15 @@ async function pollForDetailedAnalysis(analysisId: string, maxAttempts = 60) {
     try {
       const response = await $fetch<AnalysisHistoryItem>(`/api/analysis/${analysisId}`)
 
-      if (response && response.result.ingredients && response.result.ingredients.length > 0) {
+      if (
+        response &&
+        (
+          response.result.detailedStatus === 'failed' ||
+          response.result.detailedStatus === 'complete' ||
+          (response.result.rawMarkdown && response.result.rawMarkdown.length > 0) ||
+          (response.result.ingredients && response.result.ingredients.length > 0)
+        )
+      ) {
         // 发出更新事件，让父组件刷新结果显示
         emit('completed', response)
         return

@@ -6,6 +6,7 @@ import { getSupabaseAdminClient, requireApiUser } from '~/server/utils/supabase'
 function mapHistoryRow(row: Record<string, unknown>): AnalysisHistoryItem {
   const ingredientLines = Array.isArray(row.ingredient_lines) ? row.ingredient_lines.map(item => String(item)) : []
   const foodName = String(row.food_name)
+  const storedResult = row.result && typeof row.result === 'object' ? row.result as Record<string, unknown> : {}
 
   return {
     id: String(row.id),
@@ -16,11 +17,19 @@ function mapHistoryRow(row: Record<string, unknown>): AnalysisHistoryItem {
     foodName,
     healthScore: Number(row.health_score ?? 0),
     createdAt: String(row.created_at),
-    result: normalizeFoodAnalysisResult(row.result, ingredientLines, {
-      foodName,
-      healthScore: Number(row.health_score ?? 0),
-      analysisTime: String(row.created_at)
-    })
+    result: {
+      // 直接使用数据库中存储的结果，避免重复规范化导致数据丢失
+      ...normalizeFoodAnalysisResult(storedResult, ingredientLines, {
+        foodName,
+        healthScore: Number(row.health_score ?? 0),
+        analysisTime: String(row.created_at)
+      }),
+      // 确保 detailedStatus 和 detailedError 从原始 storedResult 中读取，不被覆盖
+      detailedStatus: storedResult.detailedStatus === 'complete' || storedResult.detailedStatus === 'failed'
+        ? storedResult.detailedStatus as string
+        : 'pending',
+      detailedError: typeof storedResult.detailedError === 'string' ? storedResult.detailedError : ''
+    }
   }
 }
 
@@ -52,11 +61,10 @@ export default defineEventHandler(async event => {
 
   const history = mapHistoryRow(data)
 
-  // 检查是否详细分析已完成（result.ingredients 不为空）
+  // 详细分析完成或失败时都不应继续轮询
   const isComplete =
-    history.result.ingredients &&
-    Array.isArray(history.result.ingredients) &&
-    history.result.ingredients.length > 0
+    history.result.detailedStatus === 'complete' ||
+    history.result.detailedStatus === 'failed'
 
   return {
     ...history,

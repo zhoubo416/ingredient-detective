@@ -190,9 +190,16 @@ export function normalizeFoodAnalysisResult(
     warnings: Array.isArray((data as FoodAnalysisResult).warnings)
       ? (data as FoodAnalysisResult).warnings.map(item => String(item).trim()).filter(Boolean)
       : [],
+    detailedStatus: data.detailedStatus === 'complete' || data.detailedStatus === 'failed'
+      ? data.detailedStatus
+      : 'pending',
+    detailedError: typeof data.detailedError === 'string' ? data.detailedError : '',
     analysisTime: typeof data.analysisTime === 'string'
       ? data.analysisTime
-      : fallback.analysisTime ?? new Date(0).toISOString()
+      : fallback.analysisTime ?? new Date(0).toISOString(),
+    rawMarkdown: typeof (data as Record<string, unknown>).rawMarkdown === 'string'
+      ? (data as Record<string, unknown>).rawMarkdown as string
+      : ''
   }
 }
 
@@ -272,6 +279,290 @@ function parseDetailedAnalysisResult(response: string, ingredientLines: string[]
   return result
 }
 
+function parseDetailedMarkdownAnalysis(markdown: string, ingredientLines: string[]) {
+  console.info('[parse-start]', {
+    markdownLength: markdown.length,
+    ingredientCount: ingredientLines.length,
+    ingredientNames: ingredientLines
+  })
+
+  const lines = markdown.split('\n')
+  console.info('[parse-lines-count]', { linesCount: lines.length })
+
+  let foodName = ''
+  let healthScore = 5
+  let complianceStatus = '待确认'
+  let processingLevel = '未知'
+  let overallAssessment = ''
+  let recommendations = ''
+  let claimsAssessment = ''
+
+  // 提取基本信息
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim()
+
+    // 产品名称 (# 开头，第一个)
+    if (line.startsWith('# ') && !foodName) {
+      foodName = line.substring(2).trim()
+      console.info('[parse-found-foodname]', { foodName })
+    }
+
+    // 总体评分部分
+    if (line.includes('健康评分')) {
+      const match = line.match(/(\d+)/)
+      if (match) {
+        healthScore = Math.min(10, Math.max(0, parseInt(match[1])))
+        console.info('[parse-found-health-score]', { healthScore })
+      }
+    }
+    if (line.includes('合规性:')) {
+      const match = line.match(/合规性:\s*(.+?)(?:\n|$)/)
+      if (match) {
+        complianceStatus = match[1].trim()
+        console.info('[parse-found-compliance]', { complianceStatus })
+      }
+    }
+    if (line.includes('加工度:') && !line.includes('###')) {
+      const match = line.match(/加工度:\s*(.+?)(?:\n|$)/)
+      if (match) {
+        processingLevel = match[1].trim()
+        console.info('[parse-found-processing-level]', { processingLevel })
+      }
+    }
+    if (line.includes('总体评价:')) {
+      const match = line.match(/总体评价:\s*(.+?)(?:\n|$)/)
+      if (match) {
+        overallAssessment = match[1].trim().substring(0, 100)
+        console.info('[parse-found-assessment]', { overallAssessment })
+      }
+    }
+    if (line.includes('建议:') && !line.includes('###')) {
+      const match = line.match(/建议:\s*(.+?)(?:\n|$)/)
+      if (match) {
+        recommendations = match[1].trim().substring(0, 100)
+        console.info('[parse-found-recommendations]', { recommendations })
+      }
+    }
+  }
+
+  // 提取配料信息
+  const ingredients: IngredientAnalysis[] = []
+
+  for (const ingredientName of ingredientLines) {
+    const normalizedName = ingredientName.trim()
+    if (!normalizedName) continue
+
+    console.info('[parse-ingredient-start]', { ingredientName: normalizedName })
+
+    // 在 Markdown 中查找这个配料的标题 (### 或 ## 开头)
+    let ingredientStartIdx = -1
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i].trim()
+      if ((line.startsWith('### ') || line.startsWith('## ')) &&
+          line.toLowerCase().includes(normalizedName.toLowerCase())) {
+        ingredientStartIdx = i
+        console.info('[parse-found-ingredient-title]', { index: i, line })
+        break
+      }
+    }
+
+    // 如果找不到标题，在内容中查找配料名
+    if (ingredientStartIdx < 0) {
+      for (let i = 0; i < lines.length; i++) {
+        if (lines[i].toLowerCase().includes(normalizedName.toLowerCase())) {
+          ingredientStartIdx = i
+          console.info('[parse-found-ingredient-content]', { index: i, line: lines[i] })
+          break
+        }
+      }
+    }
+
+    // 提取该配料的详细信息
+    let function_ = ''
+    let nutritionalValue = ''
+    let complianceStatus_ = ''
+    let processingLevel_ = ''
+    let riskLevel: 'normal' | 'additive' | 'caution' = 'normal'
+    let riskReason = ''
+    let negativeImpact = ''
+    let actionableAdvice = ''
+    let isAdditive = false
+
+    if (ingredientStartIdx >= 0) {
+      const contextStart = ingredientStartIdx
+      const contextEnd = Math.min(ingredientStartIdx + 15, lines.length)
+
+      console.info('[parse-ingredient-context-range]', { start: contextStart, end: contextEnd })
+
+      for (let i = contextStart; i < contextEnd; i++) {
+        const line = lines[i].trim()
+
+        // 停止条件：遇到下一个配料或章节
+        if (i > ingredientStartIdx && (line.startsWith('###') || line.startsWith('##'))) {
+          console.info('[parse-ingredient-context-end]', { atLine: i })
+          break
+        }
+
+        // 提取字段
+        if (line.includes('作用:')) {
+          const match = line.match(/作用:\s*(.+?)(?:\n|$)/)
+          if (match) {
+            function_ = match[1].trim().substring(0, 40)
+            console.info('[parse-ingredient-function]', { function: function_ })
+          }
+        }
+        if (line.includes('营养价值:')) {
+          const match = line.match(/营养价值:\s*(.+?)(?:\n|$)/)
+          if (match) {
+            nutritionalValue = match[1].trim().substring(0, 40)
+            console.info('[parse-ingredient-nutrition]', { nutritionalValue })
+          }
+        }
+        if (line.includes('合规性:')) {
+          const match = line.match(/合规性:\s*(.+?)(?:\n|$)/)
+          if (match) {
+            complianceStatus_ = match[1].trim().substring(0, 30)
+            console.info('[parse-ingredient-compliance]', { compliance: complianceStatus_ })
+          }
+        }
+        if (line.includes('加工度:')) {
+          const match = line.match(/加工度:\s*(.+?)(?:\n|$)/)
+          if (match) {
+            processingLevel_ = match[1].trim().substring(0, 30)
+            console.info('[parse-ingredient-processing]', { processing: processingLevel_ })
+          }
+        }
+        if (line.includes('风险等级:')) {
+          const match = line.match(/风险等级:\s*(.+?)(?:\n|$)/)
+          if (match) {
+            const level = match[1].trim().toLowerCase()
+            if (level.includes('添加剂')) {
+              riskLevel = 'additive'
+              isAdditive = true
+            } else if (level.includes('需关注')) {
+              riskLevel = 'caution'
+            } else {
+              riskLevel = 'normal'
+            }
+            console.info('[parse-ingredient-risk-level]', { riskLevel, originalText: match[1].trim() })
+          }
+        }
+        if (line.includes('风险说明:')) {
+          const match = line.match(/风险说明:\s*(.+?)(?:\n|$)/)
+          if (match) {
+            riskReason = match[1].trim().substring(0, 40)
+            console.info('[parse-ingredient-risk-reason]', { riskReason })
+          }
+        }
+        if (line.includes('不良影响:')) {
+          const match = line.match(/不良影响:\s*(.+?)(?:\n|$)/)
+          if (match) {
+            negativeImpact = match[1].trim().substring(0, 40)
+            console.info('[parse-ingredient-negative-impact]', { negativeImpact })
+          }
+        }
+        if (line.includes('建议:')) {
+          const match = line.match(/建议:\s*(.+?)(?:\n|$)/)
+          if (match) {
+            actionableAdvice = match[1].trim().substring(0, 40)
+            console.info('[parse-ingredient-advice]', { actionableAdvice })
+          }
+        }
+      }
+    } else {
+      console.warn('[parse-ingredient-not-found]', { ingredientName: normalizedName })
+    }
+
+    const ingredient: IngredientAnalysis = {
+      ingredientName: normalizedName,
+      function: function_,
+      nutritionalValue,
+      complianceStatus: complianceStatus_,
+      processingLevel: processingLevel_,
+      remarks: '',
+      riskLevel,
+      riskReason,
+      actionableAdvice,
+      negativeImpact,
+      isAdditive
+    }
+
+    console.info('[parse-ingredient-complete]', {
+      name: normalizedName,
+      hasFunction: !!function_.trim(),
+      function: function_,
+      riskLevel,
+      isAdditive
+    })
+
+    ingredients.push(ingredient)
+  }
+
+  console.info('[parse-markdown-complete]', {
+    ingredientCount: ingredients.length,
+    withFunctions: ingredients.filter(i => i.function.trim()).length,
+    foodName
+  })
+
+  return {
+    foodName: foodName.trim() || '未知食品',
+    healthScore: Number.isFinite(healthScore) ? healthScore : 5,
+    compliance: {
+      status: complianceStatus,
+      description: '',
+      issues: []
+    },
+    processing: {
+      level: processingLevel,
+      description: '',
+      score: 3
+    },
+    claims: {
+      detectedClaims: [],
+      supportedClaims: [],
+      questionableClaims: [],
+      assessment: claimsAssessment.trim()
+    },
+    overallAssessment: overallAssessment.trim(),
+    recommendations: recommendations.trim(),
+    ingredients,
+    detailedStatus: 'complete' as const,
+    detailedError: '',
+    warnings: [],
+    analysisTime: new Date().toISOString()
+  } satisfies FoodAnalysisResult
+}
+
+function buildRequestBody(
+  llm: LlmConfig,
+  messages: Array<{ role: string; content: string }>,
+  temperature: number,
+  maxTokens: number,
+  useJsonMode: boolean = true
+) {
+  const baseBody = {
+    model: llm.model,
+    temperature,
+    max_tokens: maxTokens,
+    messages
+  } as Record<string, unknown>
+
+  // 为支持的模型添加 response_format
+  if (useJsonMode) {
+    if (llm.provider === 'deepseek') {
+      // DeepSeek 支持 JSON 对象格式
+      baseBody.response_format = {
+        type: 'json_object'
+      }
+    } else if (llm.provider === 'qwen') {
+      // Qwen/DashScope 使用字符串格式
+      baseBody.response_format = 'json'
+    }
+  }
+
+  return baseBody
+}
+
 function resolveLlmConfig() {
   const config = useRuntimeConfig()
   const preferredProvider = String(config.llmProvider || '').trim().toLowerCase()
@@ -310,7 +601,7 @@ export async function analyzeQuickMetrics(
     throw new Error('LLM is not configured')
   }
 
-  const systemPrompt = `你是食品营养快速评估师。快速返回 JSON，格式如下，不包含逐项配料分析：
+  const systemPrompt = `你是食品营养快速评估师。必须返回有效的 JSON 对象格式，json 格式如下，不包含逐项配料分析：
 {
   "foodName": "食品类型",
   "healthScore": 0-10 数值,
@@ -330,21 +621,31 @@ ${healthPrompt || '无额外用户健康信息。'}
 
   try {
     const requestStartedAt = Date.now()
+    const requestBody = buildRequestBody(
+      llm,
+      [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt }
+      ],
+      0.2,
+      400,
+      true  // 启用 JSON 模式
+    )
+
+    console.info('[ai-quick-request]', JSON.stringify({
+      provider: llm.provider,
+      model: llm.model,
+      hasResponseFormat: 'response_format' in requestBody,
+      responseFormat: requestBody.response_format
+    }))
+
     const response = await fetch(llm.url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${llm.apiKey}`
       },
-      body: JSON.stringify({
-        model: llm.model,
-        temperature: 0.2, // 更低温度，更稳定
-        max_tokens: 400, // 大幅降低
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt }
-        ]
-      }),
+      body: JSON.stringify(requestBody),
       signal
     })
     recordTiming(timings ?? {}, 'ai.quick_fetch', Date.now() - requestStartedAt, {
@@ -387,63 +688,76 @@ export async function analyzeIngredients(
     throw new Error('LLM is not configured')
   }
 
-  const systemPrompt = `你是一个食品营养分析师。请分析配料并返回 JSON，格式如下：
-{
-  "foodName": "食品类型",
-  "healthScore": 0-10 数值,
-  "compliance": {"status": "合规/不合规/待确认", "description": "说明", "issues": []},
-  "processing": {"level": "加工度", "description": "说明", "score": 1-5 数值},
-  "claims": {"detectedClaims": [], "supportedClaims": [], "questionableClaims": [], "assessment": "评估"},
-  "overallAssessment": "总体评价",
-  "recommendations": "建议",
-  "warnings": ["最多 3 条真正有用的提醒，聚焦负面影响和规避建议，没有就返回 []"],
-  "ingredients": [{
-    "ingredientName": "名称",
-    "function": "作用",
-    "nutritionalValue": "营养",
-    "complianceStatus": "合规性",
-    "processingLevel": "加工度",
-    "remarks": "补充说明，没有可空字符串",
-    "riskLevel": "normal/additive/caution",
-    "riskReason": "为什么这样判断",
-    "actionableAdvice": "针对用户可执行的建议，没有则空字符串",
-    "negativeImpact": "可能的不良影响，没有则空字符串",
-    "isAdditive": true
-  }]
-}`
+  const systemPrompt = `你是一个食品营养分析师。请用 Markdown 格式分析配料，遵循以下结构：
+
+## 配料名称
+- 作用: [配料的作用，20-30字]
+- 营养价值: [营养价值或无]
+- 合规性: ✅ 合规 / ⚠️ 待确认 / ❌ 不合规（根据实际情况选一个）
+- 加工度: ⚙️ 低 / 🔧 中 / 🏭 高（根据实际情况选一个）
+- 风险等级: ✅ 正常 [说明，30字内] / ⚠️ 添加剂 [说明，30字内] / 🚨 需关注 [说明，30字内]（根据实际情况选一个）
+- 不良影响: 💚 无 / 💛 [轻微影响，30字内] / ❤️ [明显影响，30字内]（根据实际情况选一个）
+- 建议提醒: 💡 [建议提醒，30字内或无]
+
+[为每个配料重复上面的格式]
+
+`
 
   const healthPrompt = buildUserHealthContextPrompt(userHealthProfile)
-  const userPrompt = `分析产品 "${productName}" 的配料：${ingredients.join(', ')}。
+  const userPrompt = `分析产品 “${productName}” 的配料：${ingredients.join(', ')}。
 ${healthPrompt || '无额外用户健康信息。'}
-请从合规性、加工度、宣称三个维度分析，并结合用户背景给出个性化建议。
-要求：
-1. 不要用前端再猜测风险，必须为每个配料明确给出 riskLevel、riskReason、actionableAdvice、negativeImpact、isAdditive。
-2. 如果某个配料属于食品添加剂，请将 isAdditive 设为 true，riskLevel 至少为 additive。
-3. 如果某个配料可能带来额外健康负担、摄入风险、或不适合特定人群，请将 riskLevel 设为 caution，并写清 negativeImpact 与 actionableAdvice。
-4. warnings 只保留真正有用的负面提醒与规避建议，最多 3 条；没有就返回空数组。
-5. 请基于食品配料与食品添加剂的通行定义判断 isAdditive，不要仅凭“甜”“咸”“看起来像加工原料”做机械归类。
-6. 如果未提供商品名称，请根据配料判断并返回一个准确、克制的食品名称或品类。
-只返回 JSON。`
+
+【重要】
+- 只分析上面列出的真实配料，忽略产品标准号、生产许可证等非配料内容
+- **必须为每个配料提供完整的作用分析**（不能为空或”未知”）
+  - 如”小麦粉”→”提供碳水化合物和能量”
+  - 如”食盐”→”调味和防腐作用”
+- 按上面的 Markdown 格式输出，每个配料都要有所有字段
+- 根据配料推断产品名称（如未提供）`
 
   const { signal, clear } = createTimeoutSignal()
 
   try {
+    console.info('[detailed-analysis-start]', {
+      ingredientCount: ingredients.length,
+      productName,
+      ingredients: ingredients.join(', ')
+    })
+
     const requestStartedAt = Date.now()
+    const requestBody = buildRequestBody(
+      llm,
+      [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt }
+      ],
+      0.3,
+      3000,  // 增加到 3000 tokens，足够所有配料详细分析
+      false  // 详细分析使用 Markdown 格式，不启用 JSON 模式
+    )
+
+    console.info('[llm-request-params]', {
+      provider: llm.provider,
+      model: llm.model,
+      messages: [
+        { role: 'system', contentLength: systemPrompt.length },
+        { role: 'user', contentLength: userPrompt.length }
+      ],
+      temperature: 0.3,
+      maxTokens: 3000,
+      url: llm.url
+    })
+
+    console.info('[llm-system-prompt]', systemPrompt)
+    console.info('[llm-user-prompt]', userPrompt)
+
     const response = await fetch(llm.url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${llm.apiKey}`
       },
-      body: JSON.stringify({
-        model: llm.model,
-        temperature: 0.3,
-        max_tokens: 2000,
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt }
-        ]
-      }),
+      body: JSON.stringify(requestBody),
       signal
     })
     recordTiming(timings ?? {}, 'ai.fetch', Date.now() - requestStartedAt, {
@@ -459,23 +773,59 @@ ${healthPrompt || '无额外用户健康信息。'}
     }
     recordTiming(timings ?? {}, 'ai.read_response', Date.now() - parseStartedAt)
 
+    console.info('[llm-response-status]', {
+      status: response.status,
+      statusText: response.statusText,
+      ok: response.ok
+    })
+
     if (!response.ok) {
+      console.error('[llm-response-error]', JSON.stringify(payload))
       throw new Error(`Detailed analysis API error: ${response.status}`)
     }
 
     const content = payload.choices?.[0]?.message?.content
     if (!content) {
+      console.error('[llm-response-empty]', { payload })
       throw new Error('Detailed analysis response is empty')
     }
 
+    console.info('[llm-response-content-length]', { contentLength: content.length })
+    console.info('[llm-response-content]', content.substring(0, 2000))
+    console.info('[llm-response-content-full]', content)
+
+    // 直接返回原始 Markdown，不进行任何处理
     const normalizeStartedAt = Date.now()
-    const result = parseDetailedAnalysisResult(content, ingredients)
-    recordTiming(timings ?? {}, 'ai.parse_json', Date.now() - normalizeStartedAt, {
+    recordTiming(timings ?? {}, 'ai.parse_markdown', Date.now() - normalizeStartedAt, {
       contentChars: content.length
     })
 
-    return result
+    console.info('[detailed-analysis-raw-markdown]', {
+      contentLength: content.length,
+      preview: content.substring(0, 200)
+    })
+
+    return {
+      foodName: '',
+      ingredients: [],
+      healthScore: 0,
+      compliance: { status: '', description: '', issues: [] },
+      processing: { level: '', description: '', score: 0 },
+      claims: { detectedClaims: [], supportedClaims: [], questionableClaims: [], assessment: '' },
+      overallAssessment: '',
+      recommendations: '',
+      warnings: [],
+      detailedStatus: 'complete' as const,
+      detailedError: '',
+      analysisTime: new Date().toISOString(),
+      // 直接返回原始 Markdown
+      rawMarkdown: content
+    } satisfies FoodAnalysisResult & { rawMarkdown: string }
   } catch (error) {
+    console.error('[detailed-analysis-error]', {
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined
+    })
     throw new Error(`Detailed analysis failed: ${error instanceof Error ? error.message : String(error)}`)
   } finally {
     clear()

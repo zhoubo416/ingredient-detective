@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { marked } from 'marked'
 import type { FoodAnalysisResult } from '~/shared/analysis'
 import { getScoreTone } from '~/shared/analysis'
 
@@ -78,6 +79,11 @@ const demoResult: FoodAnalysisResult = {
 const activeResult = computed(() => props.result ?? demoResult)
 const scoreTone = computed(() => getScoreTone(activeResult.value.healthScore))
 const isDemo = computed(() => !props.result)
+const renderedMarkdown = computed(() => {
+  const md = activeResult.value.rawMarkdown
+  if (!md) return ''
+  return marked.parse(md, { async: false }) as string
+})
 </script>
 
 <template>
@@ -146,7 +152,9 @@ const isDemo = computed(() => !props.result)
           </span>
         </div>
 
-        <div v-if="activeResult.ingredients.length === 0" class="rounded-[1.5rem] border border-dashed border-slate-300 bg-amber-50/50 px-6 py-8 text-sm text-slate-600">
+        <div v-if="renderedMarkdown" class="markdown-content rounded-[1.5rem] border border-slate-900/5 bg-white/85 px-5 py-4" v-html="renderedMarkdown" />
+
+        <div v-else-if="activeResult.ingredients.length === 0" class="rounded-[1.5rem] border border-dashed border-slate-300 bg-amber-50/50 px-6 py-8 text-sm text-slate-600">
           <p>详细配料分析生成中，请稍候...</p>
           <div class="mt-3 h-1 w-full overflow-hidden rounded-full bg-slate-200">
             <div class="h-full w-1/3 animate-pulse bg-amber-400"></div>
@@ -177,3 +185,37 @@ const isDemo = computed(() => !props.result)
     </div>
   </UCard>
 </template>
+
+<style scoped>
+.markdown-content :deep(h2) {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: #0f172a;
+  margin-top: 0.75rem;
+  margin-bottom: 0.125rem;
+}
+
+.markdown-content :deep(h2:first-child) {
+  margin-top: 0;
+}
+
+.markdown-content :deep(ul) {
+  list-style: none;
+  padding-left: 0;
+  margin: 0;
+}
+
+.markdown-content :deep(li) {
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: #475569;
+}
+
+.markdown-content :deep(p) {
+  margin: 0;
+}
+
+.markdown-content :deep(strong) {
+  color: #1e293b;
+}
+</style>

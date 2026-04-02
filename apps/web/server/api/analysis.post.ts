@@ -72,6 +72,8 @@ function buildStoredQuickResult(quick: AnalysisResponse['quick']) {
     overallAssessment: quick.overallAssessment,
     recommendations: quick.recommendations,
     warnings: [],
+    detailedStatus: 'pending',
+    detailedError: '',
     analysisTime: new Date().toISOString()
   }
 }
@@ -177,6 +179,7 @@ export default defineEventHandler(async event => {
     'ai.quick',
     () => analyzeQuickMetrics(ingredientLines, resolvedProductName, userHealthProfile, timings)
   )
+  const storedQuickResult = buildStoredQuickResult(quick)
 
   // 保存到数据库（先保存快速结果）
   const supabase = getSupabaseAdminClient()
@@ -191,7 +194,7 @@ export default defineEventHandler(async event => {
         ingredient_lines: ingredientLines as unknown as Json,
         food_name: quick.foodName,
         health_score: quick.healthScore,
-        result: buildStoredQuickResult(quick) as unknown as Json
+        result: storedQuickResult as unknown as Json
       })
       .select('id')
       .single()
@@ -211,6 +214,7 @@ export default defineEventHandler(async event => {
     generateDetailedAnalysisInBackground(
       String(analysisId),
       user.id,
+      storedQuickResult,
       detailedAnalysisPromise,
       detailedTimings,
       detailedStartedAt
@@ -246,6 +250,7 @@ export default defineEventHandler(async event => {
 async function generateDetailedAnalysisInBackground(
   analysisId: string,
   userId: string,
+  quickResultSnapshot: ReturnType<typeof buildStoredQuickResult>,
   detailedAnalysisPromise: ReturnType<typeof analyzeIngredients>,
   timings: TimingMap,
   startedAt: number
@@ -259,7 +264,11 @@ async function generateDetailedAnalysisInBackground(
       return supabase
         .from('analysis_results')
         .update({
-          result: fullAnalysis as unknown as Json
+          result: {
+            ...fullAnalysis,
+            detailedStatus: 'complete',
+            detailedError: ''
+          } as unknown as Json
         })
         .eq('id', analysisId)
     })
@@ -270,12 +279,31 @@ async function generateDetailedAnalysisInBackground(
       analysisId,
       userId,
       totalMs,
+      ingredientCount: fullAnalysis.ingredients?.length ?? 0,
       timings
     }))
   } catch (err) {
-    console.error('[analysis-detailed-error]', {
+    const supabase = getSupabaseAdminClient()
+    const errorMessage = err instanceof Error ? err.message : String(err)
+    const errorStack = err instanceof Error ? err.stack : undefined
+
+    await supabase
+      .from('analysis_results')
+      .update({
+        result: {
+          ...quickResultSnapshot,
+          detailedStatus: 'failed',
+          detailedError: errorMessage
+        } as unknown as Json
+      })
+      .eq('id', analysisId)
+
+    console.error('[analysis-detailed-error]', JSON.stringify({
       analysisId,
-      error: err instanceof Error ? err.message : String(err)
-    })
+      userId,
+      error: errorMessage,
+      stack: errorStack,
+      totalMs: Date.now() - startedAt
+    }))
   }
 }

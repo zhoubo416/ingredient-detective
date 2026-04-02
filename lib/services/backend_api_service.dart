@@ -69,6 +69,7 @@ class BackendApiService {
       ),
       overallAssessment: quickResult['overallAssessment']?.toString() ?? '',
       recommendations: quickResult['recommendations']?.toString() ?? '',
+      detailedStatus: 'pending',
       analysisTime: DateTime.now(),
       analysisId: analysisId,
     );
@@ -107,6 +108,11 @@ class BackendApiService {
     final payload = jsonDecode(response.body) as Map<String, dynamic>;
 
     if (response.statusCode < 200 || response.statusCode >= 300) {
+      if (response.statusCode == 401) {
+        throw UnauthorizedException(
+          payload['statusMessage']?.toString() ?? '登录已失效，请重新登录',
+        );
+      }
       throw Exception(payload['statusMessage']?.toString() ?? '分析失败');
     }
 
@@ -153,6 +159,11 @@ class BackendApiService {
     final payload = jsonDecode(response.body) as Map<String, dynamic>;
 
     if (response.statusCode < 200 || response.statusCode >= 300) {
+      if (response.statusCode == 401) {
+        throw UnauthorizedException(
+          payload['statusMessage']?.toString() ?? '登录已失效，请重新登录',
+        );
+      }
       throw Exception(payload['statusMessage']?.toString() ?? '分析失败');
     }
 
@@ -228,6 +239,11 @@ class BackendApiService {
     final payload = jsonDecode(response.body) as Map<String, dynamic>;
 
     if (response.statusCode < 200 || response.statusCode >= 300) {
+      if (response.statusCode == 401) {
+        throw UnauthorizedException(
+          payload['statusMessage']?.toString() ?? '登录已失效，请重新登录',
+        );
+      }
       throw Exception(payload['statusMessage']?.toString() ?? '获取分析结果失败');
     }
 
@@ -240,4 +256,14 @@ class BackendApiService {
     result['analysisId'] = result['analysisId'] ?? payload['id'] ?? analysisId;
     return FoodAnalysisResult.fromMap(result);
   }
+}
+
+/// 未授权异常 - 用于 401 错误
+class UnauthorizedException implements Exception {
+  final String message;
+
+  UnauthorizedException(this.message);
+
+  @override
+  String toString() => message;
 }

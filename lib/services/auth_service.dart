@@ -23,15 +23,47 @@ class AuthService {
   Future<Session?> getValidSession({bool forceRefresh = false}) async {
     if (!isConfigured) return null;
 
-    final session = _auth.currentSession;
+    Session? session = _auth.currentSession;
     if (session == null) {
       return null;
     }
 
-    if (!forceRefresh && !session.isExpired) {
-      return session;
+    if (forceRefresh || session.isExpired) {
+      session = await _refreshOrClearSession();
+      if (session == null) {
+        return null;
+      }
     }
 
+    try {
+      await _auth.getUser(session.accessToken);
+      return _auth.currentSession ?? session;
+    } catch (_) {
+      if (forceRefresh) {
+        await _auth.signOut();
+        return null;
+      }
+
+      final refreshed = await _refreshOrClearSession();
+      if (refreshed == null) {
+        return null;
+      }
+
+      try {
+        await _auth.getUser(refreshed.accessToken);
+        return _auth.currentSession ?? refreshed;
+      } catch (_) {
+        await _auth.signOut();
+        return null;
+      }
+    }
+  }
+
+  Future<bool> hasValidSession() async {
+    return await getValidSession() != null;
+  }
+
+  Future<Session?> _refreshOrClearSession() async {
     try {
       final refreshed = await _auth.refreshSession();
       return refreshed.session;
@@ -39,10 +71,6 @@ class AuthService {
       await _auth.signOut();
       return null;
     }
-  }
-
-  Future<bool> hasValidSession() async {
-    return await getValidSession() != null;
   }
 
   Future<AuthResponse> signIn({

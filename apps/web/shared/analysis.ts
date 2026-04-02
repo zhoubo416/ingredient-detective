@@ -43,7 +43,10 @@ export interface FoodAnalysisResult {
   overallAssessment: string
   recommendations: string
   warnings: string[]
+  detailedStatus?: 'pending' | 'complete' | 'failed'
+  detailedError?: string
   analysisTime: string
+  rawMarkdown?: string
 }
 
 export interface AnalysisHistoryItem {
