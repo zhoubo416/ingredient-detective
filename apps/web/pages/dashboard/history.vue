@@ -85,7 +85,7 @@ onMounted(loadHistory)
           </span>
           <h1 class="mt-4 text-4xl font-semibold text-slate-900">历史记录中心</h1>
           <p class="mt-3 max-w-3xl text-sm leading-7 text-slate-600">
-            输入食品名或配料关键词，快速回看过往结果。点击左侧条目即可在右侧查看详细分析。
+            输入食品名或配料关键词，快速回看过往分析结果。
           </p>
         </div>
 

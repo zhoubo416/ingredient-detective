@@ -100,25 +100,37 @@ export function getScoreTone(score: number) {
   if (score >= 8) {
     return {
       label: '优秀',
-      color: 'success' as const
+      color: 'success' as const,
+      hex: '#1B8A5A',
+      softHex: '#EAF8F1',
+      borderHex: '#1B8A5A26'
     }
   }
   if (score >= 6) {
     return {
       label: '良好',
-      color: 'warning' as const
+      color: 'warning' as const,
+      hex: '#D68C00',
+      softHex: '#FFF4DA',
+      borderHex: '#D68C0026'
     }
   }
   if (score >= 4) {
     return {
       label: '一般',
-      color: 'warning' as const
+      color: 'warning' as const,
+      hex: '#E56B00',
+      softHex: '#FFEBDD',
+      borderHex: '#E56B0026'
     }
   }
 
   return {
     label: '关注',
-    color: 'error' as const
+    color: 'error' as const,
+    hex: '#C73535',
+    softHex: '#FEEBEC',
+    borderHex: '#C7353526'
   }
 }
 

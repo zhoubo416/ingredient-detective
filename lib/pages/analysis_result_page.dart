@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_markdown/flutter_markdown.dart';
 
 import '../models/ingredient_analysis.dart';
 import '../services/backend_api_service.dart';
@@ -345,28 +344,6 @@ class _AnalysisResultPageState extends State<AnalysisResultPage> {
     return advice.join('\n\n');
   }
 
-  String? _combinedStatusDetail() {
-    final parts = <String>[];
-    final complianceDescription = _nonEmptyOrNull(
-      _result.compliance.description,
-    );
-    final processingDescription = _nonEmptyOrNull(
-      _result.processing.description,
-    );
-
-    if (complianceDescription != null) {
-      parts.add('合规性: $complianceDescription');
-    }
-    if (processingDescription != null) {
-      parts.add('加工程度: $processingDescription');
-    }
-
-    if (parts.isEmpty) {
-      return null;
-    }
-    return parts.join('\n\n');
-  }
-
   List<IngredientAnalysis> get _visibleIngredients {
     if (_showAllIngredients || _result.ingredients.length <= 3) {
       return _result.ingredients;
@@ -410,11 +387,12 @@ class _AnalysisResultPageState extends State<AnalysisResultPage> {
         ? _result.foodName
         : '未知食品';
     final tone = _scoreTone(_result.healthScore);
+    final reminderAdvice = _reminderAdvice();
 
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(28),
+        borderRadius: BorderRadius.circular(24),
         gradient: const LinearGradient(
           colors: [Color(0xFFF3FBF4), Color(0xFFE7F4E9)],
           begin: Alignment.topLeft,
@@ -424,8 +402,8 @@ class _AnalysisResultPageState extends State<AnalysisResultPage> {
         boxShadow: const [
           BoxShadow(
             color: Color(0x0A17301A),
-            blurRadius: 22,
-            offset: Offset(0, 10),
+            blurRadius: 16,
+            offset: Offset(0, 6),
           ),
         ],
       ),
@@ -435,34 +413,6 @@ class _AnalysisResultPageState extends State<AnalysisResultPage> {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                width: 78,
-                height: 78,
-                decoration: BoxDecoration(
-                  color: const Color(0xFFDFF1E0),
-                  borderRadius: BorderRadius.circular(24),
-                  border: Border.all(color: const Color(0xFFCBE0CE)),
-                ),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      _result.healthScore.toStringAsFixed(1),
-                      style: const TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.w800,
-                        color: Color(0xFF2F7D32),
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    const Text(
-                      '/ 10',
-                      style: TextStyle(fontSize: 12, color: Color(0xFF5D7762)),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 14),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -470,118 +420,109 @@ class _AnalysisResultPageState extends State<AnalysisResultPage> {
                     Text(
                       foodName,
                       style: const TextStyle(
-                        fontSize: 24,
+                        fontSize: 20,
                         fontWeight: FontWeight.w800,
                         color: Color(0xFF163020),
                       ),
                     ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 4),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 4,
+                      children: [
+                        _buildStatusChip(
+                          icon: Icons.favorite_rounded,
+                          label: '',
+                          value: tone.label,
+                          color: tone.color,
+                        ),
+                        _buildStatusChip(
+                          icon: Icons.verified_user_outlined,
+                          label: '',
+                          value: _safeValue(_result.compliance.status),
+                          color: const Color(0xFF256A54),
+                        ),
+                        _buildStatusChip(
+                          icon: Icons.precision_manufacturing_outlined,
+                          label: '加工 ',
+                          value: _safeValue(_result.processing.level),
+                          color: const Color(0xFF5B6FA8),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 10),
+              Container(
+                width: 56,
+                height: 56,
+                decoration: BoxDecoration(
+                  color: tone.softColor,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: tone.color.withAlpha(60)),
+                ),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
                     Text(
-                      _safeValue(_result.overallAssessment),
-                      style: const TextStyle(
-                        fontSize: 13,
-                        height: 1.6,
-                        color: Color(0xFF57705D),
+                      _result.healthScore.toStringAsFixed(1),
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w800,
+                        color: tone.color,
                       ),
+                    ),
+                    Text(
+                      '/ 10',
+                      style: TextStyle(fontSize: 10, color: tone.color.withAlpha(150)),
                     ),
                   ],
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 18),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              _buildStatusChip(
-                icon: Icons.favorite_rounded,
-                label: '评级 ',
-                value: tone.label,
-                color: tone.color,
-              ),
-              _buildStatusChip(
-                icon: Icons.verified_user_outlined,
-                label: '合规 ',
-                value: _safeValue(_result.compliance.status),
-                color: const Color(0xFF256A54),
-              ),
-              _buildStatusChip(
-                icon: Icons.precision_manufacturing_outlined,
-                label: '加工度 ',
-                value: _safeValue(_result.processing.level),
-                color: const Color(0xFF5B6FA8),
-              ),
-              _buildStatusChip(
-                icon: Icons.schedule_rounded,
-                label: '时间 ',
-                value: _formatAnalysisTime(_result.analysisTime),
-                color: const Color(0xFF6D7A5E),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildInsightCard({
-    required IconData icon,
-    required String title,
-    required String content,
-    required Color color,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: const Color(0xFFDEE9E0)),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x0A17301A),
-            blurRadius: 22,
-            offset: Offset(0, 10),
-          ),
-        ],
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: 44,
-            height: 44,
-            decoration: BoxDecoration(
-              color: color.withAlpha(18),
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Icon(icon, color: color),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w800,
-                    color: Color(0xFF111827),
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  content,
-                  style: const TextStyle(
-                    fontSize: 13,
-                    height: 1.65,
-                    color: Color(0xFF4B5563),
-                  ),
-                ),
-              ],
+          const SizedBox(height: 10),
+          Text(
+            _safeValue(_result.overallAssessment),
+            style: const TextStyle(
+              fontSize: 13,
+              height: 1.55,
+              color: Color(0xFF57705D),
             ),
           ),
+          if (reminderAdvice != null) ...[
+            const SizedBox(height: 8),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFEF3C7).withAlpha(120),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Icon(
+                    Icons.warning_amber_rounded,
+                    size: 16,
+                    color: Color(0xFFB45309),
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      reminderAdvice,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        height: 1.5,
+                        color: Color(0xFF92400E),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -804,10 +745,10 @@ class _AnalysisResultPageState extends State<AnalysisResultPage> {
 
   Widget _buildIngredientsCard() {
     return Container(
-      padding: const EdgeInsets.all(18),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(20),
         border: Border.all(color: const Color(0xFFDEE9E0)),
         boxShadow: const [
           BoxShadow(
@@ -823,53 +764,21 @@ class _AnalysisResultPageState extends State<AnalysisResultPage> {
           Row(
             children: [
               const Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      '配料信息',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w800,
-                        color: Color(0xFF111827),
-                      ),
-                    ),
-                    SizedBox(height: 6),
-                    Text(
-                      '默认显示前 3 项重点配料，展开后查看完整逐项分析。',
-                      style: TextStyle(
-                        fontSize: 13,
-                        height: 1.6,
-                        color: Color(0xFF6B7280),
-                      ),
-                    ),
-                  ],
+                child: Text(
+                  '配料信息',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF111827),
+                  ),
                 ),
               ),
               if (_result.ingredients.length > 3) _buildExpandButton(),
             ],
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 10),
           if (_result.rawMarkdown.isNotEmpty)
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: const Color(0xFFF7FAF7),
-                borderRadius: BorderRadius.circular(18),
-                border: Border.all(color: const Color(0xFFE1ECE3)),
-              ),
-              child: MarkdownBody(
-                data: _result.rawMarkdown,
-                styleSheet: MarkdownStyleSheet(
-                  h1: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1F2937)),
-                  h2: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: Color(0xFF374151)),
-                  h3: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Color(0xFF4B5563)),
-                  p: const TextStyle(fontSize: 13, height: 1.6, color: Color(0xFF4B5563)),
-                  listBullet: const TextStyle(fontSize: 13, color: Color(0xFF4B5563)),
-                ),
-              ),
-            )
+            _buildMarkdownView(_result.rawMarkdown)
           else if (_hasIngredients)
             ...List.generate(
               _visibleIngredients.length,
@@ -1061,49 +970,19 @@ class _AnalysisResultPageState extends State<AnalysisResultPage> {
 
     for (final rawLine in lines) {
       final line = rawLine.trimRight();
-      if (line.isEmpty) {
-        widgets.add(const SizedBox(height: 8));
-        continue;
-      }
+      if (line.isEmpty) continue;
 
       if (line.startsWith('### ')) {
         widgets.add(
-          Container(
-            margin: const EdgeInsets.only(top: 10, bottom: 6),
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: const Color(0xFFF7FBF7),
-              borderRadius: BorderRadius.circular(18),
-              border: Border.all(color: const Color(0xFFDDE8DD)),
-            ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  width: 34,
-                  height: 34,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFEAF8F1),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: const Icon(
-                    Icons.eco_outlined,
-                    size: 18,
-                    color: Color(0xFF2F7D32),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    line.substring(4),
-                    style: const TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w800,
-                      color: Color(0xFF111827),
-                    ),
-                  ),
-                ),
-              ],
+          Padding(
+            padding: const EdgeInsets.only(top: 8, bottom: 4),
+            child: Text(
+              line.substring(4),
+              style: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+                color: Color(0xFF111827),
+              ),
             ),
           ),
         );
@@ -1114,27 +993,29 @@ class _AnalysisResultPageState extends State<AnalysisResultPage> {
         final title = line.substring(3);
         widgets.add(
           Container(
-            margin: const EdgeInsets.only(top: 16, bottom: 8),
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            margin: EdgeInsets.only(
+              top: widgets.isEmpty ? 0 : 12,
+              bottom: 4,
+            ),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
             decoration: BoxDecoration(
               color: const Color(0xFFECFDF5),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: const Color(0xFFCDEED9)),
+              borderRadius: BorderRadius.circular(12),
             ),
             child: Row(
               children: [
                 Icon(
                   _sectionIcon(title),
-                  size: 18,
+                  size: 16,
                   color: const Color(0xFF166534),
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: 6),
                 Expanded(
                   child: Text(
                     title,
                     style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w800,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
                       color: Color(0xFF14532D),
                     ),
                   ),
@@ -1148,32 +1029,27 @@ class _AnalysisResultPageState extends State<AnalysisResultPage> {
 
       if (line.startsWith('- ')) {
         final content = line.substring(2);
-        const baseStyle = TextStyle(fontSize: 13, height: 1.6);
+        const baseStyle = TextStyle(fontSize: 12.5, height: 1.5);
         widgets.add(
-          Container(
-            margin: const EdgeInsets.only(top: 4, bottom: 4),
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: const Color(0xFFF9FAFB),
-              borderRadius: BorderRadius.circular(14),
-            ),
+          Padding(
+            padding: const EdgeInsets.only(left: 4, top: 2, bottom: 2),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Container(
-                  width: 8,
-                  height: 8,
-                  margin: const EdgeInsets.only(top: 7),
+                  width: 5,
+                  height: 5,
+                  margin: const EdgeInsets.only(top: 6),
                   decoration: const BoxDecoration(
-                    color: Color(0xFF2F7D32),
+                    color: Color(0xFF9CA3AF),
                     shape: BoxShape.circle,
                   ),
                 ),
-                const SizedBox(width: 10),
+                const SizedBox(width: 8),
                 Expanded(
                   child: RichText(
                     text: TextSpan(
-                      style: baseStyle.copyWith(color: const Color(0xFF1F2937)),
+                      style: baseStyle.copyWith(color: const Color(0xFF374151)),
                       children: _buildInlineSpans(content, baseStyle),
                     ),
                   ),
@@ -1185,16 +1061,10 @@ class _AnalysisResultPageState extends State<AnalysisResultPage> {
         continue;
       }
 
-      const baseStyle = TextStyle(fontSize: 13, height: 1.7);
+      const baseStyle = TextStyle(fontSize: 12.5, height: 1.5);
       widgets.add(
-        Container(
-          width: double.infinity,
-          margin: const EdgeInsets.only(top: 2, bottom: 4),
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: const Color(0xFFFCFDFD),
-            borderRadius: BorderRadius.circular(14),
-          ),
+        Padding(
+          padding: const EdgeInsets.only(top: 1, bottom: 1),
           child: RichText(
             text: TextSpan(
               style: baseStyle.copyWith(color: const Color(0xFF374151)),
@@ -1257,8 +1127,6 @@ class _AnalysisResultPageState extends State<AnalysisResultPage> {
   Widget build(BuildContext context) {
     final markdown = _reportMarkdown();
     final hasExtraReport = markdown.trim().isNotEmpty;
-    final reminderAdvice = _reminderAdvice();
-    final combinedStatusDetail = _combinedStatusDetail();
 
     return Scaffold(
       backgroundColor: const Color(0xFFF4F8F4),
@@ -1281,107 +1149,31 @@ class _AnalysisResultPageState extends State<AnalysisResultPage> {
             child: RefreshIndicator(
               color: const Color(0xFF2F7D32),
               onRefresh: _refreshResult,
-              child: LayoutBuilder(
-                builder: (context, constraints) {
-                  final isWide = constraints.maxWidth >= 1120;
-
-                  final insightCards = [
-                    _buildInsightCard(
-                      icon: Icons.psychology_alt_outlined,
-                      title: '整体判断',
-                      content: _safeValue(_result.overallAssessment),
-                      color: const Color(0xFF2563EB),
+              child: ListView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+                children: [
+                  Center(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 1180),
+                      child: Column(
+                        children: [
+                          _buildSummaryHero(),
+                          const SizedBox(height: 12),
+                          if (_needsPolling) ...[
+                            _buildPollingNotice(),
+                            const SizedBox(height: 12),
+                          ],
+                          _buildIngredientsCard(),
+                          if (hasExtraReport) ...[
+                            const SizedBox(height: 12),
+                            _buildReportCard(markdown),
+                          ],
+                        ],
+                      ),
                     ),
-                    if (reminderAdvice != null)
-                      _buildInsightCard(
-                        icon: Icons.warning_amber_rounded,
-                        title: '提醒建议',
-                        content: reminderAdvice,
-                        color: const Color(0xFFB45309),
-                      ),
-                    if (combinedStatusDetail != null)
-                      _buildInsightCard(
-                        icon: Icons.verified_outlined,
-                        title: '合规与加工',
-                        content: combinedStatusDetail,
-                        color: const Color(0xFF0F766E),
-                      ),
-                  ];
-
-                  return ListView(
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
-                    children: [
-                      Center(
-                        child: ConstrainedBox(
-                          constraints: const BoxConstraints(maxWidth: 1180),
-                          child: Column(
-                            children: [
-                              _buildSummaryHero(),
-                              const SizedBox(height: 16),
-                              if (isWide)
-                                Row(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Expanded(
-                                      flex: 5,
-                                      child: Column(
-                                        children: [
-                                          for (
-                                            int i = 0;
-                                            i < insightCards.length;
-                                            i++
-                                          ) ...[
-                                            insightCards[i],
-                                            if (i != insightCards.length - 1)
-                                              const SizedBox(height: 12),
-                                          ],
-                                          if (_needsPolling) ...[
-                                            if (insightCards.isNotEmpty)
-                                              const SizedBox(height: 12),
-                                            _buildPollingNotice(),
-                                          ],
-                                        ],
-                                      ),
-                                    ),
-                                    const SizedBox(width: 16),
-                                    Expanded(
-                                      flex: 7,
-                                      child: Column(
-                                        children: [
-                                          _buildIngredientsCard(),
-                                          if (hasExtraReport) ...[
-                                            const SizedBox(height: 16),
-                                            _buildReportCard(markdown),
-                                          ],
-                                        ],
-                                      ),
-                                    ),
-                                  ],
-                                )
-                              else ...[
-                                for (final card in insightCards) ...[
-                                  card,
-                                  const SizedBox(height: 12),
-                                ],
-                                if (_needsPolling) ...[
-                                  _buildPollingNotice(),
-                                  const SizedBox(height: 16),
-                                ] else if (insightCards.isNotEmpty)
-                                  const SizedBox(height: 4),
-                                _buildIngredientsCard(),
-                                if (hasExtraReport) ...[
-                                  const SizedBox(height: 16),
-                                  _buildReportCard(markdown),
-                                ],
-                              ],
-                            ],
-                          ),
-                        ),
-                      ),
-                    ],
-                  );
-                },
+                  ),
+                ],
               ),
             ),
           ),

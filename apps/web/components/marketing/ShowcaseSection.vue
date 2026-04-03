@@ -45,7 +45,7 @@ const timeline = [
                 <div class="flex items-center justify-between">
                   <div>
                     <p class="text-xs uppercase tracking-[0.14em] text-slate-400">Analysis</p>
-                    <p class="mt-1 text-lg font-semibold text-slate-900">巴氏杀菌风味酸乳</p>
+                    <p class="mt-1 text-lg font-semibold text-slate-900">风味酸乳</p>
                   </div>
                   <div class="rounded-full bg-emerald-100 px-3 py-1 text-sm font-semibold text-emerald-700">
                     5.0 分
