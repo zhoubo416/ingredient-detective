@@ -8,14 +8,17 @@ class HistoryPage extends StatefulWidget {
   const HistoryPage({super.key});
 
   @override
-  State<HistoryPage> createState() => _HistoryPageState();
+  State<HistoryPage> createState() => HistoryPageState();
 }
 
-class _HistoryPageState extends State<HistoryPage> {
+class HistoryPageState extends State<HistoryPage> {
   final BackendApiService _backendApiService = BackendApiService();
 
   List<AnalysisHistoryItem> _history = [];
   bool _isLoading = true;
+
+  /// Called by parent to refresh history when tab becomes visible.
+  void refresh() => _loadHistory();
 
   @override
   void initState() {

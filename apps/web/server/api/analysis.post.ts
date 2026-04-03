@@ -265,7 +265,15 @@ async function generateDetailedAnalysisInBackground(
         .from('analysis_results')
         .update({
           result: {
+            ...quickResultSnapshot,
             ...fullAnalysis,
+            // 保留 quick 阶段的结构化数据（detailed 阶段这些字段为空）
+            foodName: quickResultSnapshot.foodName || fullAnalysis.foodName,
+            healthScore: quickResultSnapshot.healthScore || fullAnalysis.healthScore,
+            overallAssessment: quickResultSnapshot.overallAssessment || fullAnalysis.overallAssessment,
+            recommendations: quickResultSnapshot.recommendations || fullAnalysis.recommendations,
+            compliance: quickResultSnapshot.compliance.status ? quickResultSnapshot.compliance : fullAnalysis.compliance,
+            processing: quickResultSnapshot.processing.level ? quickResultSnapshot.processing : fullAnalysis.processing,
             detailedStatus: 'complete',
             detailedError: ''
           } as unknown as Json

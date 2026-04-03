@@ -14,11 +14,12 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   int _currentIndex = 0;
+  final _historyKey = GlobalKey<HistoryPageState>();
 
-  final List<Widget> _pages = const [
-    CameraPage(),
-    HistoryPage(),
-    ProfilePage(),
+  late final List<Widget> _pages = [
+    const CameraPage(),
+    HistoryPage(key: _historyKey),
+    const ProfilePage(),
   ];
 
   static const _titles = ['开始分析', '历史记录', '我的'];
@@ -51,6 +52,7 @@ class _HomePageState extends State<HomePage> {
         setState(() {
           _currentIndex = index;
         });
+        if (index == 1) _historyKey.currentState?.refresh();
       },
       extended: true,
       backgroundColor: Colors.white,
@@ -206,6 +208,7 @@ class _HomePageState extends State<HomePage> {
                     setState(() {
                       _currentIndex = index;
                     });
+                    if (index == 1) _historyKey.currentState?.refresh();
                   },
                   height: 74,
                   backgroundColor: Colors.white,

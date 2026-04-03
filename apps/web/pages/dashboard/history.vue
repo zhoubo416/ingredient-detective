@@ -122,27 +122,23 @@ onMounted(loadHistory)
       </div>
     </div>
 
-    <div class="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
-      <section class="space-y-4 reveal-up delay-1">
-        <div class="flex items-center justify-between">
-          <h2 class="text-2xl font-semibold text-slate-900">查询结果</h2>
-          <span class="text-sm text-slate-500">{{ filteredItems.length }} 条</span>
-        </div>
+    <section class="space-y-4 reveal-up delay-1">
+      <div class="flex items-center justify-between">
+        <h2 class="text-2xl font-semibold text-slate-900">查询结果</h2>
+        <span class="text-sm text-slate-500">{{ filteredItems.length }} 条</span>
+      </div>
 
-        <div v-if="loading" class="rounded-[1.5rem] bg-white/80 px-6 py-10 text-sm text-slate-500">
-          正在加载…
-        </div>
+      <div v-if="loading" class="rounded-[1.5rem] bg-white/80 px-6 py-10 text-sm text-slate-500">
+        正在加载…
+      </div>
 
-        <HistoryList
-          v-else
-          :items="filteredItems"
-          :selected-id="selected?.id ?? ''"
-          @select="selected = $event"
-          @remove="handleRemove"
-        />
-      </section>
-
-      <AnalysisResultCard :result="selected?.result ?? null" />
-    </div>
+      <HistoryList
+        v-else
+        :items="filteredItems"
+        :selected-id="selected?.id ?? ''"
+        @select="selected = $event"
+        @remove="handleRemove"
+      />
+    </section>
   </UContainer>
 </template>

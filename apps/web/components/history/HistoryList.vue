@@ -70,17 +70,18 @@ function scoreColor(score: number) {
             配料：{{ item.ingredientLines.join('、') || '暂无' }}
           </p>
 
-          <div v-if="item.result.rawMarkdown && expandedId === item.id" class="markdown-content rounded-xl border border-slate-200 bg-white/90 px-3 py-2" v-html="renderMarkdown(item.result.rawMarkdown)" />
         </div>
 
         <div class="flex shrink-0 gap-2">
           <UButton v-if="item.result.rawMarkdown" color="neutral" variant="soft" @click="toggleExpand(item.id)">
             {{ expandedId === item.id ? '收起' : '展开配料' }}
           </UButton>
-          <UButton color="primary" variant="soft" @click="$emit('select', item)">查看详情</UButton>
+
           <UButton color="error" variant="soft" @click="$emit('remove', item.id)">删除</UButton>
         </div>
       </div>
+
+      <div v-if="item.result.rawMarkdown && expandedId === item.id" class="markdown-content mt-4 w-full rounded-xl border border-slate-200 bg-white/90 px-4 py-3" v-html="renderMarkdown(item.result.rawMarkdown)" />
     </div>
 
     <div

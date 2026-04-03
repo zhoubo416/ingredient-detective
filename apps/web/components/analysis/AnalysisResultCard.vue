@@ -148,7 +148,7 @@ const renderedMarkdown = computed(() => {
         <div class="flex items-center justify-between">
           <h3 class="text-xl font-semibold text-slate-900">逐项配料分析</h3>
           <span class="text-sm text-slate-500">
-            {{ activeResult.ingredients.length > 0 ? activeResult.ingredients.length : '加载中' }} 项
+            {{ renderedMarkdown ? '已完成' : '加载中' }}
           </span>
         </div>
 

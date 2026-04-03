@@ -188,18 +188,25 @@ class BackendApiService {
       throw Exception('BACKEND_API_URL 未配置');
     }
 
+    final uri = _buildUri('/api/history', {'limit': '$limit'});
+    print('[fetchHistory] GET $uri');
+
     final response = await http.get(
-      _buildUri('/api/history', {'limit': '$limit'}),
+      uri,
       headers: await _authorizedHeaders(),
     );
+
+    print('[fetchHistory] status=${response.statusCode} bodyLength=${response.body.length}');
 
     final payload = jsonDecode(response.body) as Map<String, dynamic>;
 
     if (response.statusCode < 200 || response.statusCode >= 300) {
+      print('[fetchHistory] error: ${response.body}');
       throw Exception(payload['statusMessage']?.toString() ?? '加载历史失败');
     }
 
     final items = payload['items'] as List<dynamic>? ?? [];
+    print('[fetchHistory] items count: ${items.length}');
     return items
         .map(
           (item) => AnalysisHistoryItem.fromMap(
