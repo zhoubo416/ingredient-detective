@@ -457,45 +457,23 @@ class _ProfilePageState extends State<ProfilePage> {
     return _buildSectionCard(
       title: '使用统计',
       subtitle: '基于最近同步到当前账号的分析记录。',
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final isCompact = constraints.maxWidth < 360;
-          if (isCompact) {
-            return Column(
-              children: stats
-                  .map(
-                    (item) => Padding(
-                      padding: const EdgeInsets.only(bottom: 10),
-                      child: _buildStatTile(
-                        label: item.$1,
-                        value: item.$2,
-                        color: item.$3,
-                      ),
-                    ),
-                  )
-                  .toList(),
-            );
-          }
-
-          return Row(
-            children: stats
-                .map(
-                  (item) => Expanded(
-                    child: Padding(
-                      padding: EdgeInsets.only(
-                        right: item == stats.last ? 0 : 10,
-                      ),
-                      child: _buildStatTile(
-                        label: item.$1,
-                        value: item.$2,
-                        color: item.$3,
-                      ),
-                    ),
+      child: Row(
+        children: stats
+            .map(
+              (item) => Expanded(
+                child: Padding(
+                  padding: EdgeInsets.only(
+                    right: item == stats.last ? 0 : 12,
                   ),
-                )
-                .toList(),
-          );
-        },
+                  child: _buildStatTile(
+                    label: item.$1,
+                    value: item.$2,
+                    color: item.$3,
+                  ),
+                ),
+              ),
+            )
+            .toList(),
       ),
     );
   }
@@ -506,30 +484,35 @@ class _ProfilePageState extends State<ProfilePage> {
     required Color color,
   }) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 18),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(20),
+        color: color.withAlpha(20),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: color.withAlpha(40),
+          width: 1,
+        ),
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           Text(
             value,
             style: TextStyle(
-              fontSize: 26,
+              fontSize: 28,
               fontWeight: FontWeight.w800,
               color: color,
             ),
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 6),
           Text(
             label,
             style: const TextStyle(
-              fontSize: 12,
+              fontSize: 13,
               fontWeight: FontWeight.w600,
               color: Color(0xFF6B7280),
             ),
+            textAlign: TextAlign.center,
           ),
         ],
       ),
@@ -542,6 +525,7 @@ class _ProfilePageState extends State<ProfilePage> {
     required Widget child,
   }) {
     return Container(
+      width: double.infinity,
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         color: Colors.white,

@@ -62,7 +62,7 @@ useSeoMeta({
                 3. 在历史页持续追踪和对比
               </div>
             </div>
-            <div class="mt-6 flex flex-wrap gap-3">
+            <div class="mt-6 flex flex-wrap gap-3 justify-end">
               <UButton to="/login" color="primary" size="lg" trailing-icon="i-lucide-arrow-right">
                 立即体验产品
               </UButton>

@@ -347,10 +347,13 @@ class _LoginPageState extends State<LoginPage> {
                               ),
                             ),
                             const SizedBox(height: 12),
-                            Wrap(
-                              spacing: 8,
-                              runSpacing: 8,
-                              children: [
+                            SizedBox(
+                              width: double.infinity,
+                              child: Wrap(
+                                spacing: 8,
+                                runSpacing: 8,
+                                alignment: WrapAlignment.end,
+                                children: [
                                 if (_isSignIn)
                                   TextButton(
                                     onPressed: _isSubmitting ? null : _handlePasswordReset,
@@ -362,6 +365,7 @@ class _LoginPageState extends State<LoginPage> {
                                 ),
                               ],
                             ),
+                          ),
                           ],
                         ),
                       ),

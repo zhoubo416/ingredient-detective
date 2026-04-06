@@ -605,75 +605,6 @@ class _CameraPageState extends State<CameraPage> {
     );
   }
 
-  Widget _buildHeroSection() {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFFF3FBF4), Color(0xFFE8F5EA)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(28),
-        border: Border.all(color: const Color(0xFFD8E8DA)),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x0A17301A),
-            blurRadius: 22,
-            offset: Offset(0, 10),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: 56,
-            height: 56,
-            decoration: BoxDecoration(
-              color: const Color(0xFFDFF1E0),
-              borderRadius: BorderRadius.circular(18),
-            ),
-            child: const Icon(
-              Icons.document_scanner_outlined,
-              size: 30,
-              color: Color(0xFF2F7D32),
-            ),
-          ),
-          const SizedBox(height: 18),
-          const Text(
-            '拍照识别配料表，\n快速拿到健康建议',
-            style: TextStyle(
-              fontSize: 26,
-              height: 1.25,
-              fontWeight: FontWeight.w800,
-              color: Color(0xFF163020),
-            ),
-          ),
-          const SizedBox(height: 10),
-          const Text(
-            '支持拍照、相册上传和手动输入。识别完成后会结合你的健康信息给出更贴近你的提醒。',
-            style: TextStyle(
-              fontSize: 14,
-              height: 1.7,
-              color: Color(0xFF55705C),
-            ),
-          ),
-          const SizedBox(height: 16),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: const [
-              _TopChip(label: '2-5 秒返回首屏结论'),
-              _TopChip(label: '逐项解释配料作用'),
-              _TopChip(label: '历史记录自动沉淀'),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _buildFeaturesSection() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -729,26 +660,6 @@ class _CameraPageState extends State<CameraPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const Text(
-            '开始一次分析',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w700,
-              color: Color(0xFF1F2937),
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            kIsWeb
-                ? '手机浏览器支持直接拍照；桌面浏览器点击“拍照分析”时，通常会打开系统图片选择器。'
-                : '支持现场拍照、相册上传和手动输入配料文本。',
-            style: const TextStyle(
-              fontSize: 13,
-              height: 1.6,
-              color: Color(0xFF6B7280),
-            ),
-          ),
-          const SizedBox(height: 16),
           _buildActionButton(
             icon: Icons.camera_alt_rounded,
             title: '拍照分析',
@@ -868,8 +779,6 @@ class _CameraPageState extends State<CameraPage> {
                                   flex: 7,
                                   child: Column(
                                     children: [
-                                      _buildHeroSection(),
-                                      const SizedBox(height: 18),
                                       _buildFeaturesSection(),
                                     ],
                                   ),
@@ -888,8 +797,6 @@ class _CameraPageState extends State<CameraPage> {
                               ],
                             )
                           else ...[
-                            _buildHeroSection(),
-                            const SizedBox(height: 18),
                             _buildActionsSection(),
                             const SizedBox(height: 20),
                             _buildFeaturesSection(),

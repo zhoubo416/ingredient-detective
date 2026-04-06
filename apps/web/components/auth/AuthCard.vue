@@ -198,7 +198,7 @@ async function handleSubmit() {
           <NuxtLink class="apple-link" to="/privacy-policy">《隐私政策》</NuxtLink>
         </p>
 
-        <div class="flex flex-wrap gap-3 text-sm">
+        <div class="flex flex-wrap gap-3 text-sm justify-end">
           <UButton
             v-if="mode === 'signin'"
             type="button"

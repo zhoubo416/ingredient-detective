@@ -13,7 +13,7 @@ const painPoints = [
 </script>
 
 <template>
-  <section class="brand-hero py-16 sm:py-24">
+  <section class="brand-hero py-16">
     <UContainer>
       <div class="hero-shell grid gap-10 p-8 lg:grid-cols-[1.05fr_0.95fr] lg:p-10">
         <div class="space-y-6 reveal-up">

@@ -33,7 +33,8 @@ const demoResult: FoodAnalysisResult = {
     '白砂糖会明显抬高糖负担，控糖人群不建议高频摄入。',
     '食用香精说明产品风味修饰较强，可优先比较配料更简单的同类产品。'
   ],
-  analysisTime: new Date().toISOString()
+  analysisTime: new Date().toISOString(),
+  rawMarkdown: "## 生牛乳\n- 作用: 主要原料，提供蛋白质、钙等基础营养\n- 安全: 合规✅ 加工度 低 🥛 天然乳品，需注意新鲜度\n- 提醒: 乳糖不耐受者需注意\n\n## 饮用水\n- 作用: 调节产品质地与浓度\n- 安全: 合规✅ 加工度 低 💧 基础溶剂，安全\n- 提醒: 无特别提醒\n\n## 草莓果酱\n- 作用: 提供草莓风味、色泽和部分糖分\n- 安全: 合规✅ 加工度 中 🍓 含添加糖，为风味来源\n- 提醒: 注意额外糖分摄入\n\n## 白砂糖\n- 作用: 提供甜味和能量\n- 安全: 合规✅ 加工度 中 🍬 常见甜味剂，需控制量\n- 提醒: 过量摄入不利健康\n\n## 佳宝\n- 作用: (信息不足，可能为品牌或特定成分)\n- 安全: 合规✅ 加工度 中 ⚠️ 具体成分不明\n- 提醒: 建议查询具体成分\n\n## 燕麦粒\n- 作用: 增加膳食纤维和谷物口感\n- 安全: 合规✅ 加工度 低 🌾 全谷物，营养有益\n- 提醒: 无特别提醒\n\n## 果葡糖浆\n- 作用: 甜味剂，提供能量和改善口感\n- 安全: 合规✅ 加工度 高 🍯 液态甜味剂，升糖较快\n- 提醒: 需控制摄入量\n\n## 乙酰化二淀粉磷酸酯\n- 作用: 增稠剂、稳定剂\n- 安全: 合规✅ 加工度 高 🧪 改性淀粉，安全\n- 提醒: 无特别提醒\n\n## 赤藓糖醇\n- 作用: 甜味剂，提供甜味几乎无热量\n- 安全: 合规✅ 加工度 高 🍬 代糖，耐受性佳\n- 提醒: 过量可能引起肠胃不适\n\n## 羧甲基纤维素钠\n- 作用: 增稠剂、稳定剂\n- 安全: 合规✅ 加工度 高 🧪 常见食品添加剂\n- 提醒: 无特别提醒\n\n## 果胶\n- 作用: 增稠剂、胶凝剂\n- 安全: 合规✅ 加工度 中 🍎 天然提取物，安全\n- 提醒: 无特别提醒\n\n## 结冷胶\n- 作用: 胶凝剂、稳定剂\n- 安全: 合规✅ 加工度 高 🧪 微生物发酵多糖\n- 提醒: 无特别提醒\n\n## 双甘油脂肪酸酯\n- 作用: 乳化剂，改善质地\n- 安全: 合规✅ 加工度 高 🧪 常见乳化剂\n- 提醒: 无特别提醒\n\n## 酸切\n- 作用: (信息不足，可能为酸度调节剂或笔误)\n- 安全: 合规✅ 加工度 中 ⚠️ 具体成分不明\n- 提醒: 建议查询具体成分\n\n## 柠檬酸钠\n- 作用: 酸度调节剂、稳定剂\n- 安全: 合规✅ 加工度 中 🍋 常见食品添加剂\n- 提醒: 无特别提醒\n\n## 双乙酰酒石酸单双甘油酯\n- 作用: 乳化剂，改善面团或质地\n- 安全: 合规✅ 加工度 高 🧪 常见乳化剂\n- 提醒: 无特别提醒\n\n## 三氯蔗糖\n- 作用: 高强度甜味剂\n- 安全: 合规✅ 加工度 高 🍬 人工甜味剂，甜度高\n- 提醒: 无特别提醒\n\n## 德氏\n- 作用: (信息不足，可能为菌种品牌或笔误)\n- 安全: 合规✅ 加工度 中 ⚠️ 具体成分不明\n- 提醒: 建议查询具体成分\n\n## 保加利亚乳杆菌\n- 作用: 发酵菌种，有益肠道\n- 安全: 合规✅ 加工度 低 🦠 常见益生菌\n- 提醒: 无特别提醒\n\n## 嗜热链球菌\n- 作用: 发酵菌种，产酸产香\n- 安全: 合规✅ 加工度 低 🦠 常见发酵菌\n- 提醒: 无特别提醒\n\n## 食用香精\n- 作用: 增强或补充产品风味\n- 安全: 合规✅ 加工度 高 🌸 人工调配，合规使用安全\n- 提醒: 无特别提醒"
 }
 
 const activeResult = computed(() => props.result ?? demoResult)
@@ -41,6 +42,9 @@ const scoreTone = computed(() => getScoreTone(activeResult.value.healthScore))
 const isDemo = computed(() => !props.result)
 const renderedMarkdown = computed(() => {
   const md = activeResult.value.rawMarkdown
+  console.log(md,'md')
+  console.log(props,'props')
+  console.log(demoResult,'demoResult')
   if (!md) return ''
   return marked.parse(md, { async: false }) as string
 })
@@ -102,16 +106,13 @@ const renderedMarkdown = computed(() => {
         <h3 class="text-base font-bold text-slate-900">配料信息</h3>
         <span class="text-xs text-slate-500">{{ renderedMarkdown ? '已完成' : '加载中' }}</span>
       </div>
-
       <div v-if="renderedMarkdown" class="markdown-content" v-html="renderedMarkdown" />
-
       <div v-else-if="activeResult.ingredients.length === 0" class="rounded-xl border border-dashed border-slate-300 bg-amber-50/50 px-4 py-6 text-sm text-slate-600">
         <p>详细配料分析生成中，请稍候...</p>
         <div class="mt-2 h-1 w-full overflow-hidden rounded-full bg-slate-200">
           <div class="h-full w-1/3 animate-pulse bg-amber-400"></div>
         </div>
       </div>
-
       <div v-else class="grid gap-3">
         <div
           v-for="ingredient in activeResult.ingredients"
