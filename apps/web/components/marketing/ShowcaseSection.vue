@@ -13,6 +13,8 @@ const timeline = [
     copy: '结果自动进入历史记录，方便后续检索和比较。'
   }
 ] as const
+
+const historyExpanded = ref(false)
 </script>
 
 <template>
@@ -59,18 +61,72 @@ const timeline = [
                   </p>
                 </div>
 
-                <div class="space-y-3">
-                  <div class="rounded-2xl bg-white p-4 ring-1 ring-slate-900/5">
-                    <p class="text-sm font-semibold text-slate-900">白砂糖</p>
-                    <p class="mt-1 text-xs leading-5 text-slate-500">增加甜味，但会抬高总糖负担。</p>
+                <div class="space-y-2">
+                  <!-- White sugar -->
+                  <div class="rounded-lg border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-2.5">
+                    <div class="flex items-start justify-between gap-2 mb-1.5">
+                      <p class="text-xs font-semibold text-slate-900 flex-1">白砂糖</p>
+                      <span class="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-700 font-medium text-[10px]">
+                        <UIcon name="i-lucide-alert-circle" class="size-2.5" />
+                        注意
+                      </span>
+                    </div>
+                    <div class="space-y-0.5 text-[11px] text-slate-600">
+                      <div class="flex gap-1.5">
+                        <span class="shrink-0 font-semibold text-slate-700 w-9">作用：</span>
+                        <span class="flex-1 leading-snug">提供甜味和能量</span>
+                      </div>
+                      <div class="flex gap-1.5">
+                        <span class="shrink-0 font-semibold text-slate-700 w-9">安全：</span>
+                        <span class="flex-1 leading-snug line-clamp-1">常见甜味剂，需控制量</span>
+                      </div>
+                      <div class="flex gap-1.5 pt-0.5">
+                        <span class="shrink-0 font-semibold text-amber-700 w-9">⚠️：</span>
+                        <span class="flex-1 leading-snug text-amber-700">过量摄入不利健康</span>
+                      </div>
+                    </div>
                   </div>
-                  <div class="rounded-2xl bg-white p-4 ring-1 ring-slate-900/5">
-                    <p class="text-sm font-semibold text-slate-900">果胶</p>
-                    <p class="mt-1 text-xs leading-5 text-slate-500">用于稳定质地，风险不高，但说明有加工处理。</p>
+                  
+                  <!-- Pectin -->
+                  <div class="rounded-lg border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-2.5">
+                    <div class="flex items-start justify-between gap-2 mb-1.5">
+                      <p class="text-xs font-semibold text-slate-900 flex-1">果胶</p>
+                      <span class="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-medium text-[10px]">
+                        <UIcon name="i-lucide-check-circle" class="size-2.5" />
+                        合规
+                      </span>
+                    </div>
+                    <div class="space-y-0.5 text-[11px] text-slate-600">
+                      <div class="flex gap-1.5">
+                        <span class="shrink-0 font-semibold text-slate-700 w-9">作用：</span>
+                        <span class="flex-1 leading-snug">增稠剂、胶凝剂</span>
+                      </div>
+                      <div class="flex gap-1.5">
+                        <span class="shrink-0 font-semibold text-slate-700 w-9">安全：</span>
+                        <span class="flex-1 leading-snug line-clamp-1">天然提取物，安全</span>
+                      </div>
+                    </div>
                   </div>
-                  <div class="rounded-2xl bg-amber-50 p-4 ring-1 ring-amber-100">
-                    <p class="text-sm font-semibold text-slate-900">个性化提醒</p>
-                    <p class="mt-1 text-xs leading-5 text-slate-500">控糖人群、减脂人群不建议频繁饮用。</p>
+                  
+                  <!-- Food flavor -->
+                  <div class="rounded-lg border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-2.5">
+                    <div class="flex items-start justify-between gap-2 mb-1.5">
+                      <p class="text-xs font-semibold text-slate-900 flex-1">食用香精</p>
+                      <span class="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-medium text-[10px]">
+                        <UIcon name="i-lucide-check-circle" class="size-2.5" />
+                        合规
+                      </span>
+                    </div>
+                    <div class="space-y-0.5 text-[11px] text-slate-600">
+                      <div class="flex gap-1.5">
+                        <span class="shrink-0 font-semibold text-slate-700 w-9">作用：</span>
+                        <span class="flex-1 leading-snug">增强产品风味</span>
+                      </div>
+                      <div class="flex gap-1.5">
+                        <span class="shrink-0 font-semibold text-slate-700 w-9">安全：</span>
+                        <span class="flex-1 leading-snug line-clamp-1">人工调配，合规使用安全</span>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -109,12 +165,87 @@ const timeline = [
               </div>
             </div>
             <div class="rounded-2xl border border-slate-200 bg-white p-4">
-              <div class="flex items-center justify-between gap-3">
+              <div class="flex items-center justify-between gap-3 mb-3">
                 <div>
                   <p class="text-sm font-semibold text-slate-900">风味酸乳</p>
                   <p class="mt-1 text-xs text-slate-500">白砂糖、果胶、食用香精</p>
                 </div>
                 <span class="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-700">5.0</span>
+              </div>
+              <button
+                @click="historyExpanded = !historyExpanded"
+                class="text-xs font-medium text-slate-600 hover:text-slate-900 transition-colors"
+              >
+                {{ historyExpanded ? '▼ 收起配料' : '▶ 展开配料' }}
+              </button>
+              
+              <div v-if="historyExpanded" class="mt-3 space-y-2 pt-3 border-t border-slate-100">
+                <!-- White sugar -->
+                <div class="rounded-lg border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-2.5">
+                  <div class="flex items-start justify-between gap-2 mb-1.5">
+                    <p class="text-xs font-semibold text-slate-900 flex-1">白砂糖</p>
+                    <span class="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-700 font-medium text-[10px]">
+                      <UIcon name="i-lucide-alert-circle" class="size-2.5" />
+                      注意
+                    </span>
+                  </div>
+                  <div class="space-y-0.5 text-[11px] text-slate-600">
+                    <div class="flex gap-1.5">
+                      <span class="shrink-0 font-semibold text-slate-700 w-9">作用：</span>
+                      <span class="flex-1 leading-snug">提供甜味和能量</span>
+                    </div>
+                    <div class="flex gap-1.5">
+                      <span class="shrink-0 font-semibold text-slate-700 w-9">安全：</span>
+                      <span class="flex-1 leading-snug line-clamp-1">常见甜味剂，需控制量</span>
+                    </div>
+                    <div class="flex gap-1.5 pt-0.5">
+                      <span class="shrink-0 font-semibold text-amber-700 w-9">⚠️：</span>
+                      <span class="flex-1 leading-snug text-amber-700">过量摄入不利健康</span>
+                    </div>
+                  </div>
+                </div>
+                
+                <!-- Pectin -->
+                <div class="rounded-lg border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-2.5">
+                  <div class="flex items-start justify-between gap-2 mb-1.5">
+                    <p class="text-xs font-semibold text-slate-900 flex-1">果胶</p>
+                    <span class="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-medium text-[10px]">
+                      <UIcon name="i-lucide-check-circle" class="size-2.5" />
+                      合规
+                    </span>
+                  </div>
+                  <div class="space-y-0.5 text-[11px] text-slate-600">
+                    <div class="flex gap-1.5">
+                      <span class="shrink-0 font-semibold text-slate-700 w-9">作用：</span>
+                      <span class="flex-1 leading-snug">增稠剂、胶凝剂</span>
+                    </div>
+                    <div class="flex gap-1.5">
+                      <span class="shrink-0 font-semibold text-slate-700 w-9">安全：</span>
+                      <span class="flex-1 leading-snug line-clamp-1">天然提取物，安全</span>
+                    </div>
+                  </div>
+                </div>
+                
+                <!-- Food flavor -->
+                <div class="rounded-lg border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-2.5">
+                  <div class="flex items-start justify-between gap-2 mb-1.5">
+                    <p class="text-xs font-semibold text-slate-900 flex-1">食用香精</p>
+                    <span class="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-medium text-[10px]">
+                      <UIcon name="i-lucide-check-circle" class="size-2.5" />
+                      合规
+                    </span>
+                  </div>
+                  <div class="space-y-0.5 text-[11px] text-slate-600">
+                    <div class="flex gap-1.5">
+                      <span class="shrink-0 font-semibold text-slate-700 w-9">作用：</span>
+                      <span class="flex-1 leading-snug">增强产品风味</span>
+                    </div>
+                    <div class="flex gap-1.5">
+                      <span class="shrink-0 font-semibold text-slate-700 w-9">安全：</span>
+                      <span class="flex-1 leading-snug line-clamp-1">人工调配，合规使用安全</span>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
             <div class="rounded-2xl border border-slate-200 bg-white p-4">
