@@ -1,5 +1,5 @@
-name: flutter_application_1
-description: "A new Flutter project."
+name: ingredient_detective
+description: "配料侦探 - AI智能分析食品成分安全与营养价值。"
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev

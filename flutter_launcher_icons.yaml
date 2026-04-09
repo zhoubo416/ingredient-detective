@@ -1,6 +1,6 @@
 flutter_launcher_icons:
   # 主图标路径
-  image_path: "assets/icon.png"
+  image_path: "assets/app_icon_1024.png"
   
   # Android 配置
   android: true

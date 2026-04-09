@@ -1,6 +1,6 @@
 // ignore_for_file: avoid_print
 
-import 'package:flutter_application_1/services/usage_manager.dart';
+import 'package:ingredient_detective/services/usage_manager.dart';
 
 void main() async {
   print('开始测试使用次数限制功能...\n');

@@ -1,11 +1,11 @@
 {
-    "name": "flutter_application_1",
-    "short_name": "flutter_application_1",
+    "name": "配料侦探",
+    "short_name": "配料侦探",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#ffffff",
+    "theme_color": "#10b981",
+    "description": "配料侦探 - AI智能分析食品成分安全与营养价值。",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [
