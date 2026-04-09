@@ -49,6 +49,7 @@ app.*.map.json
 node_modules/
 .nuxt/
 .output/
+*.tar.gz
 
 # Android Studio will place build artifacts here
 /android/app/debug
