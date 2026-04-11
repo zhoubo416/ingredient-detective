@@ -66,6 +66,9 @@ appl_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 - 实时监听订阅状态变化
 - 支持应用生命周期状态恢复
 - 完整的错误处理和重试机制
+- 使用 Supabase 用户 ID 作为 RevenueCat `appUserId` 进行登录绑定
+- 购买/恢复订阅后自动同步到 Nuxt 后端
+- Nuxt 把同步结果写入 Supabase Auth `app_metadata`
 
 ### 3.2 用户界面
 
@@ -84,6 +87,12 @@ appl_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 - 非 Pro 用户显示升级按钮
 - 实时订阅状态指示
 - 应用栏集成订阅入口
+- 分析入口会先校验 `Pro`，未开通时显示升级弹窗
+
+#### Web 后台联动
+- Web `/dashboard` 会读取服务端会员状态
+- 非 Pro 用户可以进入后台和查看历史，但不能提交分析
+- `POST /api/analysis` 会在服务端再次校验，防止绕过前端限制
 
 ### 3.3 权益检查
 
@@ -95,6 +104,16 @@ if (SubscriptionManager().isProUser) {
   // 显示限制或引导升级
 }
 ```
+
+当前项目中的实际限制范围：
+
+- 允许：登录、个人资料、健康信息、历史记录
+- 需要 `Pro`：拍照分析、相册上传分析、手动输入配料分析
+
+注意：
+
+- Flutter 端判断只负责用户体验
+- 最终权限以 Nuxt 服务端 `/api/analysis` 的校验结果为准
 
 ## 4. 测试指南
 
@@ -157,6 +176,14 @@ if (SubscriptionManager().isProUser) {
 - 调用 `restorePurchases()`
 - 检查网络连接
 - 联系 RevenueCat 支持
+
+补充排查顺序：
+
+1. 确认 Flutter 登录的是正确的 Supabase 账号
+2. 确认 RevenueCat 返回的活跃权益包含 `pro_access`
+3. 确认 Flutter 已成功调用 `/api/subscription/sync`
+4. 确认 Web 和 Flutter 使用的是同一个账号
+5. 重新进入 Web `/dashboard` 或在 Flutter 里刷新订阅状态
 
 ## 7. 监控和分析
 

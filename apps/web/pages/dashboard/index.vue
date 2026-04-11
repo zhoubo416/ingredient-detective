@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { AnalysisHistoryItem } from '~/shared/analysis'
+import type { SubscriptionStatusResponse } from '~/shared/subscription'
 
 definePageMeta({
   middleware: 'auth'
@@ -14,6 +15,29 @@ const history = ref<AnalysisHistoryItem[]>([])
 const selected = ref<AnalysisHistoryItem | null>(null)
 const loading = ref(true)
 const errorMessage = ref('')
+const subscription = ref<SubscriptionStatusResponse | null>(null)
+const subscriptionLoading = ref(true)
+const subscriptionError = ref('')
+
+const isProUser = computed(() => subscription.value?.isPro ?? false)
+const subscriptionBadge = computed(() => {
+  if (subscriptionLoading.value) {
+    return '正在检查 Pro 权限'
+  }
+
+  return isProUser.value ? 'Pro 已开通' : '当前为免费版'
+})
+const upgradeMessage = computed(() => {
+  if (subscriptionLoading.value) {
+    return '正在检查 Pro 权限，请稍后再试。'
+  }
+
+  if (subscriptionError.value) {
+    return subscriptionError.value
+  }
+
+  return '当前账号未开通 Pro，网页端已锁定图片上传和手动输入分析。请先在移动端升级 Pro，并使用同一账号登录。'
+})
 
 async function loadHistory() {
   loading.value = true
@@ -35,6 +59,22 @@ async function loadHistory() {
   }
 }
 
+async function loadSubscriptionStatus() {
+  subscriptionLoading.value = true
+  subscriptionError.value = ''
+
+  try {
+    subscription.value = await $fetch<SubscriptionStatusResponse>('/api/subscription/status')
+  } catch (error) {
+    subscription.value = null
+    subscriptionError.value = error instanceof Error
+      ? error.message
+      : '暂时无法确认当前账号的 Pro 权限，请刷新后重试。'
+  } finally {
+    subscriptionLoading.value = false
+  }
+}
+
 function handleCompleted(item: AnalysisHistoryItem) {
   history.value = [item, ...history.value.filter(existing => existing.id !== item.id)]
   selected.value = item
@@ -51,7 +91,10 @@ async function handleRemove(id: string) {
   }
 }
 
-onMounted(loadHistory)
+onMounted(() => {
+  loadHistory()
+  loadSubscriptionStatus()
+})
 </script>
 
 <template>
@@ -68,9 +111,14 @@ onMounted(loadHistory)
             上传食品包装图或粘贴配料文本，系统会自动完成识别与分析。分析完成后可在历史页按关键词快速检索。
           </p>
         </div>
-        <UButton to="/dashboard/history" color="neutral" variant="soft">
-          历史查询
-        </UButton>
+        <div class="flex flex-col items-start gap-3 sm:items-end">
+          <span class="rounded-full bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm ring-1 ring-slate-900/5">
+            {{ subscriptionBadge }}
+          </span>
+          <UButton to="/dashboard/history" color="neutral" variant="soft">
+            历史查询
+          </UButton>
+        </div>
       </div>
     </div>
 
@@ -82,8 +130,21 @@ onMounted(loadHistory)
       :description="errorMessage"
     />
 
+    <UAlert
+      v-if="subscriptionError"
+      color="warning"
+      variant="soft"
+      title="Pro 权限检查失败"
+      :description="subscriptionError"
+    />
+
     <div class="grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
-      <AnalysisComposer @completed="handleCompleted" />
+      <AnalysisComposer
+        :is-pro="isProUser"
+        :subscription-loading="subscriptionLoading"
+        :upgrade-message="upgradeMessage"
+        @completed="handleCompleted"
+      />
       <AnalysisResultCard :result="selected?.result ?? null" />
     </div>
 

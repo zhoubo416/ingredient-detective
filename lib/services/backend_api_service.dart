@@ -1,9 +1,11 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 import '../config/api_config.dart';
 import '../models/analysis_history_item.dart';
 import '../models/ingredient_analysis.dart';
+import '../models/subscription_status.dart';
 import 'auth_service.dart';
 
 class BackendApiService {
@@ -113,6 +115,11 @@ class BackendApiService {
           payload['statusMessage']?.toString() ?? '登录已失效，请重新登录',
         );
       }
+      if (response.statusCode == 403) {
+        throw ForbiddenException(
+          payload['statusMessage']?.toString() ?? '当前账号暂无权限执行该操作',
+        );
+      }
       throw Exception(payload['statusMessage']?.toString() ?? '分析失败');
     }
 
@@ -164,6 +171,11 @@ class BackendApiService {
           payload['statusMessage']?.toString() ?? '登录已失效，请重新登录',
         );
       }
+      if (response.statusCode == 403) {
+        throw ForbiddenException(
+          payload['statusMessage']?.toString() ?? '当前账号暂无权限执行该操作',
+        );
+      }
       throw Exception(payload['statusMessage']?.toString() ?? '分析失败');
     }
 
@@ -189,24 +201,23 @@ class BackendApiService {
     }
 
     final uri = _buildUri('/api/history', {'limit': '$limit'});
-    print('[fetchHistory] GET $uri');
+    debugPrint('[fetchHistory] GET $uri');
 
-    final response = await http.get(
-      uri,
-      headers: await _authorizedHeaders(),
+    final response = await http.get(uri, headers: await _authorizedHeaders());
+
+    debugPrint(
+      '[fetchHistory] status=${response.statusCode} bodyLength=${response.body.length}',
     );
-
-    print('[fetchHistory] status=${response.statusCode} bodyLength=${response.body.length}');
 
     final payload = jsonDecode(response.body) as Map<String, dynamic>;
 
     if (response.statusCode < 200 || response.statusCode >= 300) {
-      print('[fetchHistory] error: ${response.body}');
+      debugPrint('[fetchHistory] error: ${response.body}');
       throw Exception(payload['statusMessage']?.toString() ?? '加载历史失败');
     }
 
     final items = payload['items'] as List<dynamic>? ?? [];
-    print('[fetchHistory] items count: ${items.length}');
+    debugPrint('[fetchHistory] items count: ${items.length}');
     return items
         .map(
           (item) => AnalysisHistoryItem.fromMap(
@@ -232,6 +243,69 @@ class BackendApiService {
     }
   }
 
+  Future<SubscriptionStatus> getSubscriptionStatus() async {
+    if (!ApiConfig.isBackendConfigured) {
+      throw Exception('BACKEND_API_URL 未配置');
+    }
+
+    final response = await http.get(
+      _buildUri('/api/subscription/status'),
+      headers: await _authorizedHeaders(),
+    );
+    final payload = jsonDecode(response.body) as Map<String, dynamic>;
+
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      if (response.statusCode == 401) {
+        throw UnauthorizedException(
+          payload['statusMessage']?.toString() ?? '登录已失效，请重新登录',
+        );
+      }
+      throw Exception(payload['statusMessage']?.toString() ?? '获取订阅状态失败');
+    }
+
+    return SubscriptionStatus.fromMap(payload);
+  }
+
+  Future<SubscriptionStatus> syncSubscriptionStatus({
+    required bool isPro,
+    String source = 'revenuecat',
+    String? subscriptionStatus,
+    String? expirationDate,
+  }) async {
+    if (!ApiConfig.isBackendConfigured) {
+      throw Exception('BACKEND_API_URL 未配置');
+    }
+
+    final response = await http.post(
+      _buildUri('/api/subscription/sync'),
+      headers: {
+        'Content-Type': 'application/json',
+        ...await _authorizedHeaders(),
+      },
+      body: jsonEncode({
+        'isPro': isPro,
+        'source': source,
+        if (subscriptionStatus != null && subscriptionStatus.trim().isNotEmpty)
+          'subscriptionStatus': subscriptionStatus.trim(),
+        if (expirationDate != null && expirationDate.trim().isNotEmpty)
+          'expirationDate': expirationDate.trim(),
+      }),
+    );
+
+    final payload = jsonDecode(response.body) as Map<String, dynamic>;
+
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      if (response.statusCode == 401) {
+        throw UnauthorizedException(
+          payload['statusMessage']?.toString() ?? '登录已失效，请重新登录',
+        );
+      }
+      throw Exception(payload['statusMessage']?.toString() ?? '同步订阅状态失败');
+    }
+
+    return SubscriptionStatus.fromMap(payload);
+  }
+
   // 获取单个分析结果的详情（用于轮询）
   Future<FoodAnalysisResult> getAnalysisResult(String analysisId) async {
     if (!ApiConfig.isBackendConfigured) {
@@ -249,6 +323,11 @@ class BackendApiService {
       if (response.statusCode == 401) {
         throw UnauthorizedException(
           payload['statusMessage']?.toString() ?? '登录已失效，请重新登录',
+        );
+      }
+      if (response.statusCode == 403) {
+        throw ForbiddenException(
+          payload['statusMessage']?.toString() ?? '当前账号暂无权限执行该操作',
         );
       }
       throw Exception(payload['statusMessage']?.toString() ?? '获取分析结果失败');
@@ -270,6 +349,16 @@ class UnauthorizedException implements Exception {
   final String message;
 
   UnauthorizedException(this.message);
+
+  @override
+  String toString() => message;
+}
+
+/// 无权限异常 - 用于 403 错误
+class ForbiddenException implements Exception {
+  final String message;
+
+  ForbiddenException(this.message);
 
   @override
   String toString() => message;

@@ -146,7 +146,9 @@ class _AnalysisResultPageState extends State<AnalysisResultPage> {
             _pollError = null;
           });
 
-          if (_result.detailedStatus == 'complete' || _result.detailedStatus == 'failed' || _result.rawMarkdown.isNotEmpty) {
+          if (_result.detailedStatus == 'complete' ||
+              _result.detailedStatus == 'failed' ||
+              _result.rawMarkdown.isNotEmpty) {
             return;
           }
         } on UnauthorizedException {
@@ -265,14 +267,6 @@ class _AnalysisResultPageState extends State<AnalysisResultPage> {
       softColor: const Color(0xFFFEEBEC),
       label: '关注',
     );
-  }
-
-  String _formatAnalysisTime(DateTime time) {
-    final month = time.month.toString().padLeft(2, '0');
-    final day = time.day.toString().padLeft(2, '0');
-    final hour = time.hour.toString().padLeft(2, '0');
-    final minute = time.minute.toString().padLeft(2, '0');
-    return '$month-$day $hour:$minute';
   }
 
   ({Color color, Color softColor, String label}) _ingredientTone(
@@ -475,7 +469,10 @@ class _AnalysisResultPageState extends State<AnalysisResultPage> {
                     ),
                     Text(
                       '/ 10',
-                      style: TextStyle(fontSize: 10, color: tone.color.withAlpha(150)),
+                      style: TextStyle(
+                        fontSize: 10,
+                        color: tone.color.withAlpha(150),
+                      ),
                     ),
                   ],
                 ),
@@ -829,20 +826,20 @@ class _AnalysisResultPageState extends State<AnalysisResultPage> {
     final color = hasFailure
         ? const Color(0xFFC73535)
         : _pollError == null
-            ? const Color(0xFF2563EB)
-            : const Color(0xFFC73535);
+        ? const Color(0xFF2563EB)
+        : const Color(0xFFC73535);
     final title = hasFailure
         ? '详细分析生成失败'
         : _pollError == null
-            ? '正在补充详细配料分析'
-            : '详细结果刷新异常';
+        ? '正在补充详细配料分析'
+        : '详细结果刷新异常';
     final content = hasFailure
         ? (_result.detailedError.trim().isNotEmpty
               ? _result.detailedError.trim()
               : '模型没有返回可用的结构化结果，请重新发起分析。')
         : _pollError == null
-            ? '系统已经返回初步结论，正在继续补全每个配料的作用分析。你可以停留在此页等待，也可以手动刷新。'
-            : '最近一次刷新没有成功，但不会影响已展示的结果。可以稍后再次刷新。';
+        ? '系统已经返回初步结论，正在继续补全每个配料的作用分析。你可以停留在此页等待，也可以手动刷新。'
+        : '最近一次刷新没有成功，但不会影响已展示的结果。可以稍后再次刷新。';
 
     return Container(
       padding: const EdgeInsets.all(18),
@@ -899,21 +896,21 @@ class _AnalysisResultPageState extends State<AnalysisResultPage> {
             onPressed: _isPolling
                 ? null
                 : hasFailure
-                    ? _refreshResult
-                    : _startPolling,
+                ? _refreshResult
+                : _startPolling,
             icon: Icon(
               _isPolling
                   ? Icons.sync
                   : hasFailure
-                      ? Icons.restart_alt_rounded
-                      : Icons.refresh_rounded,
+                  ? Icons.restart_alt_rounded
+                  : Icons.refresh_rounded,
             ),
             label: Text(
               _isPolling
                   ? '生成中'
                   : hasFailure
-                      ? '重新获取结果'
-                      : '刷新详细结果',
+                  ? '重新获取结果'
+                  : '刷新详细结果',
             ),
             style: FilledButton.styleFrom(
               foregroundColor: const Color(0xFF1D4ED8),
@@ -993,10 +990,7 @@ class _AnalysisResultPageState extends State<AnalysisResultPage> {
         final title = line.substring(3);
         widgets.add(
           Container(
-            margin: EdgeInsets.only(
-              top: widgets.isEmpty ? 0 : 12,
-              bottom: 4,
-            ),
+            margin: EdgeInsets.only(top: widgets.isEmpty ? 0 : 12, bottom: 4),
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
             decoration: BoxDecoration(
               color: const Color(0xFFECFDF5),

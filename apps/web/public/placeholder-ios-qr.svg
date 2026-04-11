@@ -1,0 +1,19 @@
+<svg width="240" height="240" viewBox="0 0 240 240" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="240" height="240" rx="28" fill="#F4F7FB"/>
+  <rect x="24" y="24" width="64" height="64" rx="10" fill="#111827"/>
+  <rect x="40" y="40" width="32" height="32" rx="6" fill="#F4F7FB"/>
+  <rect x="152" y="24" width="64" height="64" rx="10" fill="#111827"/>
+  <rect x="168" y="40" width="32" height="32" rx="6" fill="#F4F7FB"/>
+  <rect x="24" y="152" width="64" height="64" rx="10" fill="#111827"/>
+  <rect x="40" y="168" width="32" height="32" rx="6" fill="#F4F7FB"/>
+  <rect x="108" y="36" width="16" height="16" rx="4" fill="#111827"/>
+  <rect x="108" y="68" width="16" height="32" rx="4" fill="#111827"/>
+  <rect x="132" y="108" width="16" height="16" rx="4" fill="#111827"/>
+  <rect x="156" y="108" width="16" height="40" rx="4" fill="#111827"/>
+  <rect x="100" y="132" width="24" height="24" rx="6" fill="#111827"/>
+  <rect x="132" y="156" width="16" height="16" rx="4" fill="#111827"/>
+  <rect x="156" y="164" width="16" height="16" rx="4" fill="#111827"/>
+  <rect x="180" y="156" width="16" height="40" rx="4" fill="#111827"/>
+  <rect x="100" y="188" width="24" height="24" rx="6" fill="#111827"/>
+  <text x="120" y="226" text-anchor="middle" fill="#475569" font-size="14" font-family="Arial, sans-serif">iOS QR Placeholder</text>
+</svg>

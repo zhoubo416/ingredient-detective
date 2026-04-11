@@ -1,5 +1,6 @@
 import type { AnalysisHistoryItem } from '~/shared/analysis'
 import type { AnalysisSourceType } from '~/shared/analysis'
+import type { FoodAnalysisResult } from '~/shared/analysis'
 import { normalizeFoodAnalysisResult } from '~/server/utils/analysis'
 import { getSupabaseAdminClient, requireApiUser } from '~/server/utils/supabase'
 
@@ -25,9 +26,10 @@ function mapHistoryRow(row: Record<string, unknown>): AnalysisHistoryItem {
         analysisTime: String(row.created_at)
       }),
       // 确保 detailedStatus 和 detailedError 从原始 storedResult 中读取，不被覆盖
-      detailedStatus: storedResult.detailedStatus === 'complete' || storedResult.detailedStatus === 'failed'
-        ? storedResult.detailedStatus as string
-        : 'pending',
+      detailedStatus:
+        storedResult.detailedStatus === 'complete' || storedResult.detailedStatus === 'failed'
+          ? storedResult.detailedStatus as FoodAnalysisResult['detailedStatus']
+          : 'pending',
       detailedError: typeof storedResult.detailedError === 'string' ? storedResult.detailedError : ''
     }
   }

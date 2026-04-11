@@ -15,11 +15,11 @@ if (process.client) {
 
     window.dataLayer = window.dataLayer || []
     function gtag(...args: any[]) {
-      ;(window.dataLayer as any[]).push(args)
+      window.dataLayer?.push(args)
     }
     gtag('js', new Date())
     gtag('config', googleAnalyticsId)
-    ;(window as any).gtag = gtag
+    window.gtag = gtag
   }
 
   // Baidu Analytics
@@ -29,7 +29,7 @@ if (process.client) {
     hm.src = `https://hm.baidu.com/hm.js?${baiduTrackingId}`
     const s = document.getElementsByTagName('script')[0]
     s?.parentNode?.insertBefore(hm, s)
-    ;(window as any)._hmt = _hmt
+    window._hmt = _hmt
   }
 }
 </script>

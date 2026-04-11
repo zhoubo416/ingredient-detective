@@ -5,6 +5,13 @@
 - Flutter 客户端：位于根目录，负责移动端 / Web 客户端界面
 - Nuxt 后端与管理后台：位于 [apps/web](/Users/bozhou/code/github/ingredient-detective/apps/web)，负责登录、OCR、AI 分析、历史记录接口和 Web 后台
 
+当前权限规则：
+
+- `Pro` 会员才可使用配料分析功能
+- 配料分析包含：拍照分析、相册上传分析、手动输入配料分析
+- 非 `Pro` 用户仍可正常使用登录、个人资料、健康信息、历史记录等非分析功能
+- 最终放行以 Nuxt 服务端为准，前端锁定只是用户提示，后端也会强制校验
+
 最容易出错的点是端口分工：
 
 - `3000` 固定给 Nuxt 后端
@@ -69,15 +76,14 @@ Flutter 在启动时读取 [assets/.env](/Users/bozhou/code/github/ingredient-de
 BACKEND_API_URL=http://127.0.0.1:3000
 SUPABASE_URL=...
 SUPABASE_ANON_KEY=...
-DEEPSEEK_API_KEY=...
-ALIYUN_ACCESS_KEY_ID=...
-ALIYUN_ACCESS_KEY_SECRET=...
+REVENUECAT_API_KEY=...
 ```
 
 关键要求：
 
 - `BACKEND_API_URL` 必须指向 Nuxt 服务
 - 本地开发建议固定为 `http://127.0.0.1:3000`
+- `REVENUECAT_API_KEY` 必须配置，否则 Flutter 端无法正确读取和同步 `Pro` 状态
 
 ### Nuxt
 
@@ -100,6 +106,14 @@ Nuxt 需要在 `apps/web/.env` 中配置：
    - `http://127.0.0.1:3000/auth/confirm`
    - `http://127.0.0.1:3000/auth/reset-password`
 
+### 会员状态同步
+
+Flutter 购买或恢复订阅后，会把 `RevenueCat` 的 `pro_access` 状态同步到 Supabase Auth 的 `app_metadata`。
+
+- Nuxt Web 后台读取这个状态来决定是否解锁分析功能
+- Flutter 分析入口也会先刷新并同步状态
+- 同一 Supabase 账号在 Flutter 升级后，Web 端重新进入后台即可继承 `Pro` 权限
+
 ## 常见问题
 
 ### `ERR_CONNECTION_REFUSED 127.0.0.1:3001`
@@ -113,6 +127,8 @@ Nuxt 需要在 `apps/web/.env` 中配置：
 1. Nuxt 已在 `127.0.0.1:3000` 启动
 2. Flutter Web 没有固定绑定 `3000`
 3. `BACKEND_API_URL` 指向 `http://127.0.0.1:3000`
+
+如果错误提示是“当前账号未开通 Pro”，那不是端口问题，而是账号本身还没有同步出有效的 `Pro` 会员状态。
 
 ### macOS 桌面版启动失败，提示找不到 `xcodebuild`
 

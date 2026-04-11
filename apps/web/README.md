@@ -7,6 +7,13 @@
 
 本地开发时，这个 Nuxt 服务必须占用 `3000`。Flutter 客户端会把它当成后端来调用。
 
+当前 Web 权限规则：
+
+- `/dashboard` 和 `/dashboard/history` 仍然要求登录
+- 只有 `Pro` 用户才能在 `/dashboard` 使用图片上传和手动输入分析
+- 非 `Pro` 用户仍可进入后台、查看历史记录和个人账号信息
+- `POST /api/analysis` 在服务端会强制校验 `Pro`，不能只靠前端按钮禁用
+
 ## 启动
 
 ### 1. 配置环境变量
@@ -64,8 +71,16 @@ npm run dev -- --port 3000 --host 127.0.0.1
 - `POST /api/analysis`
 - `GET /api/history`
 - `DELETE /api/history/:id`
+- `GET /api/subscription/status`
+- `POST /api/subscription/sync`
 
-这些接口会读取 Supabase 登录态，并在服务端执行 OCR、AI 分析和历史记录读写。
+这些接口会读取 Supabase 登录态，并在服务端执行 OCR、AI 分析、历史记录读写和会员状态同步。
+
+其中：
+
+- `POST /api/analysis` 需要当前账号已拥有 `Pro`
+- `GET /api/subscription/status` 返回当前账号的会员状态
+- `POST /api/subscription/sync` 供 Flutter 在购买/恢复订阅后同步 `RevenueCat` 权限
 
 ## 与 Flutter 的关系
 
@@ -73,10 +88,13 @@ Flutter 客户端不直接访问第三方 OCR / LLM 服务，而是调用这个 
 
 1. Flutter 登录 Supabase
 2. Flutter 把 token 带到 `http://127.0.0.1:3000/api/*`
-3. Nuxt 服务端完成 OCR、AI 分析和数据库写入
+3. Flutter 购买或恢复订阅后，把 `Pro` 状态同步到 `/api/subscription/sync`
+4. Nuxt 服务端根据当前账号会员状态决定是否允许分析
+5. 放行后再完成 OCR、AI 分析和数据库写入
 
 关键约束：
 
 - Nuxt 固定使用 `3000`
 - Flutter Web 不要占用 `3000`
 - Flutter 的 `BACKEND_API_URL` 必须指向 `http://127.0.0.1:3000`
+- 如果 Web 端显示免费版，先确认 Flutter 是否已在同一账号下完成会员同步

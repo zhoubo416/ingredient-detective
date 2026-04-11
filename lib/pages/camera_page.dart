@@ -5,10 +5,12 @@ import 'package:image_picker/image_picker.dart';
 import 'package:loading_animation_widget/loading_animation_widget.dart';
 
 import '../services/backend_api_service.dart';
+import '../services/subscription_manager.dart';
 import '../services/user_health_profile_service.dart';
 import '../widgets/permission_guide_dialog.dart';
 import 'analysis_result_page.dart';
 import 'camera_capture_page.dart';
+import 'subscription_page.dart';
 
 class CameraPage extends StatefulWidget {
   const CameraPage({super.key});
@@ -20,13 +22,107 @@ class CameraPage extends StatefulWidget {
 class _CameraPageState extends State<CameraPage> {
   final ImagePicker _imagePicker = ImagePicker();
   final BackendApiService _backendApiService = BackendApiService();
+  final SubscriptionManager _subscriptionManager = SubscriptionManager();
   final UserHealthProfileService _userHealthProfileService =
       UserHealthProfileService();
 
   bool _isLoading = false;
   String? _lastFailedImageName;
 
+  @override
+  void initState() {
+    super.initState();
+    _subscriptionManager.addListener(_handleSubscriptionChanged);
+    _warmUpSubscriptionStatus();
+  }
+
+  @override
+  void dispose() {
+    _subscriptionManager.removeListener(_handleSubscriptionChanged);
+    super.dispose();
+  }
+
+  void _handleSubscriptionChanged() {
+    if (!mounted) return;
+    setState(() {});
+  }
+
+  Future<void> _warmUpSubscriptionStatus() async {
+    try {
+      await _subscriptionManager.refreshSubscriptionStatus(
+        syncWithBackend: true,
+      );
+    } catch (_) {
+      // 忽略预热失败，实际使用时再提示。
+    }
+  }
+
+  Future<bool> _ensureProAccess() async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      await _subscriptionManager.refreshSubscriptionStatus(
+        syncWithBackend: true,
+      );
+
+      if (_subscriptionManager.isProUser) {
+        return true;
+      }
+    } catch (error) {
+      if (!mounted) return false;
+      _showErrorDialog('检查 Pro 会员状态失败: $error');
+      return false;
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+
+    if (!mounted) return false;
+    await _showProRequiredDialog();
+    return false;
+  }
+
+  Future<void> _showProRequiredDialog({String? message}) async {
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Pro 会员专享'),
+        content: Text(
+          message ??
+              '配料分析功能仅对 Pro 会员开放，包括拍照分析、相册上传和手动输入配料。你仍然可以继续使用历史记录、个人资料等其他功能。',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('稍后再说'),
+          ),
+          FilledButton(
+            onPressed: () {
+              Navigator.of(dialogContext).pop();
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const SubscriptionPage(),
+                ),
+              );
+            },
+            child: const Text('升级 Pro'),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _pickImage(ImageSource source) async {
+    if (!await _ensureProAccess()) {
+      return;
+    }
+
     final supportsPreviewCamera =
         kIsWeb ||
         defaultTargetPlatform == TargetPlatform.android ||
@@ -181,6 +277,11 @@ class _CameraPageState extends State<CameraPage> {
         return;
       }
 
+      if (e is ForbiddenException) {
+        await _showProRequiredDialog(message: e.message);
+        return;
+      }
+
       _showErrorDialog('分析失败: $e');
     }
   }
@@ -232,6 +333,13 @@ class _CameraPageState extends State<CameraPage> {
                   ),
                 );
               } catch (error) {
+                if (error is ForbiddenException) {
+                  if (!dialogContext.mounted) return;
+                  Navigator.of(dialogContext).pop();
+                  await _showProRequiredDialog(message: error.message);
+                  return;
+                }
+
                 setDialogState(() {
                   dialogError = error.toString();
                   isSubmitting = false;
@@ -643,6 +751,14 @@ class _CameraPageState extends State<CameraPage> {
   }
 
   Widget _buildActionsSection() {
+    final isProUser = _subscriptionManager.isProUser;
+    final statusText =
+        _subscriptionManager.isLoading && !_subscriptionManager.isInitialized
+        ? '正在检查 Pro 权限'
+        : isProUser
+        ? 'Pro 已开通，拍照和文本分析已解锁'
+        : '当前账号未开通 Pro，分析入口已锁定';
+
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
@@ -660,13 +776,65 @@ class _CameraPageState extends State<CameraPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: isProUser
+                  ? const Color(0xFFEAF8F1)
+                  : const Color(0xFFFFF4E5),
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(
+                color: isProUser
+                    ? const Color(0xFFD6E5D8)
+                    : const Color(0xFFF3D7A6),
+              ),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  isProUser
+                      ? Icons.verified_rounded
+                      : Icons.lock_outline_rounded,
+                  color: isProUser
+                      ? const Color(0xFF2F7D32)
+                      : const Color(0xFFB7791F),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    statusText,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: isProUser
+                          ? const Color(0xFF1F5A28)
+                          : const Color(0xFF8A5A16),
+                    ),
+                  ),
+                ),
+                if (!isProUser)
+                  TextButton(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const SubscriptionPage(),
+                        ),
+                      );
+                    },
+                    child: const Text('升级'),
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
           _buildActionButton(
             icon: Icons.camera_alt_rounded,
             title: '拍照分析',
             subtitle: '打开拍照预览页，直接对准配料表后拍摄',
             onTap: () => _pickImage(ImageSource.camera),
             filled: false,
-            badge: '推荐',
+            badge: isProUser ? '推荐' : 'Pro',
           ),
           const SizedBox(height: 12),
           _buildActionButton(
@@ -675,14 +843,20 @@ class _CameraPageState extends State<CameraPage> {
             subtitle: '上传已有包装图片，继续完成识别和分析',
             onTap: () => _pickImage(ImageSource.gallery),
             filled: false,
+            badge: isProUser ? null : 'Pro',
           ),
           const SizedBox(height: 12),
           OutlinedButton.icon(
-            onPressed: () => _showManualInputDialog(
-              initialMessage: '你可以直接手动输入商品名和配料文本，适合没有清晰图片时继续分析。',
-            ),
+            onPressed: () async {
+              if (!await _ensureProAccess()) {
+                return;
+              }
+              await _showManualInputDialog(
+                initialMessage: '你可以直接手动输入商品名和配料文本，适合没有清晰图片时继续分析。',
+              );
+            },
             icon: const Icon(Icons.edit_note_rounded),
-            label: const Text('手动输入配料'),
+            label: Text(isProUser ? '手动输入配料' : '手动输入配料 · Pro'),
             style: OutlinedButton.styleFrom(
               foregroundColor: const Color(0xFF2F7D32),
               side: const BorderSide(color: Color(0xFFD6E5D8)),
@@ -778,9 +952,7 @@ class _CameraPageState extends State<CameraPage> {
                                 Expanded(
                                   flex: 7,
                                   child: Column(
-                                    children: [
-                                      _buildFeaturesSection(),
-                                    ],
+                                    children: [_buildFeaturesSection()],
                                   ),
                                 ),
                                 const SizedBox(width: 20),
@@ -815,32 +987,6 @@ class _CameraPageState extends State<CameraPage> {
           ),
           if (_isLoading) _buildLoadingOverlay(),
         ],
-      ),
-    );
-  }
-}
-
-class _TopChip extends StatelessWidget {
-  final String label;
-
-  const _TopChip({required this.label});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: const Color(0xFFFFFFFF),
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: const Color(0xFFD7E6D8)),
-      ),
-      child: Text(
-        label,
-        style: const TextStyle(
-          fontSize: 12,
-          fontWeight: FontWeight.w600,
-          color: Color(0xFF2F5B37),
-        ),
       ),
     );
   }

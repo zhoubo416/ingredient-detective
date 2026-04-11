@@ -7,6 +7,7 @@ import { normalizeIngredientLines } from '~/shared/analysis'
 import { analyzeIngredients, analyzeQuickMetrics, normalizeFoodAnalysisResult } from '~/server/utils/analysis'
 import type { UserHealthProfileContext } from '~/server/utils/analysis'
 import { decodeBase64Image, extractIngredientLines, extractIngredientsFromImageBuffer } from '~/server/utils/ocr'
+import { requireProAccess } from '~/server/utils/subscription'
 import { getSupabaseAdminClient, requireApiUser } from '~/server/utils/supabase'
 import type { TimingMap } from '~/server/utils/timing'
 import { flattenTimingMap, measureTiming, recordTiming } from '~/server/utils/timing'
@@ -83,6 +84,7 @@ export default defineEventHandler(async event => {
   const requestId = randomUUID()
   const timings: TimingMap = {}
   const user = await measureTiming(timings, 'auth', () => requireApiUser(event))
+  await measureTiming(timings, 'subscription', () => requireProAccess(user.id))
   const contentType = event.node.req.headers['content-type'] ?? ''
 
   let productName = ''

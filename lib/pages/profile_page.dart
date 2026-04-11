@@ -5,9 +5,11 @@ import '../models/analysis_history_item.dart';
 import '../models/user_health_profile.dart';
 import '../services/auth_service.dart';
 import '../services/backend_api_service.dart';
+import '../services/subscription_manager.dart';
 import '../services/user_health_profile_service.dart';
 import 'login_page.dart';
 import 'privacy_policy_page.dart';
+import 'subscription_page.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -19,6 +21,7 @@ class ProfilePage extends StatefulWidget {
 class _ProfilePageState extends State<ProfilePage> {
   final AuthService _authService = AuthService();
   final BackendApiService _backendApiService = BackendApiService();
+  final SubscriptionManager _subscriptionManager = SubscriptionManager();
   final UserHealthProfileService _healthProfileService =
       UserHealthProfileService();
 
@@ -34,8 +37,21 @@ class _ProfilePageState extends State<ProfilePage> {
   @override
   void initState() {
     super.initState();
+    _subscriptionManager.addListener(_handleSubscriptionChanged);
     _loadSettings();
     _loadStatistics();
+    _subscriptionManager.refreshSubscriptionStatus(syncWithBackend: true);
+  }
+
+  @override
+  void dispose() {
+    _subscriptionManager.removeListener(_handleSubscriptionChanged);
+    super.dispose();
+  }
+
+  void _handleSubscriptionChanged() {
+    if (!mounted) return;
+    setState(() {});
   }
 
   Future<void> _loadSettings() async {
@@ -462,9 +478,7 @@ class _ProfilePageState extends State<ProfilePage> {
             .map(
               (item) => Expanded(
                 child: Padding(
-                  padding: EdgeInsets.only(
-                    right: item == stats.last ? 0 : 12,
-                  ),
+                  padding: EdgeInsets.only(right: item == stats.last ? 0 : 12),
                   child: _buildStatTile(
                     label: item.$1,
                     value: item.$2,
@@ -488,10 +502,7 @@ class _ProfilePageState extends State<ProfilePage> {
       decoration: BoxDecoration(
         color: color.withAlpha(20),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: color.withAlpha(40),
-          width: 1,
-        ),
+        border: Border.all(color: color.withAlpha(40), width: 1),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.center,
@@ -736,6 +747,45 @@ class _ProfilePageState extends State<ProfilePage> {
                                   fontSize: 11,
                                   fontWeight: FontWeight.w700,
                                   color: Color(0xFF1B5E20),
+                                ),
+                              ),
+                            ),
+                          ),
+                          _buildActionTile(
+                            icon: Icons.workspace_premium_outlined,
+                            title: _subscriptionManager.isProUser
+                                ? '配料侦探 Pro'
+                                : '升级到 Pro',
+                            subtitle: _subscriptionManager.isLoading
+                                ? '正在检查会员状态...'
+                                : _subscriptionManager.isProUser
+                                ? '已开通，图片上传和文字分析功能已解锁'
+                                : '未开通，开通后才可使用拍照、相册和手动输入分析',
+                            onTap: () => Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const SubscriptionPage(),
+                              ),
+                            ),
+                            trailing: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 6,
+                              ),
+                              decoration: BoxDecoration(
+                                color: _subscriptionManager.isProUser
+                                    ? const Color(0xFFEAF8F1)
+                                    : const Color(0xFFFFF4E5),
+                                borderRadius: BorderRadius.circular(999),
+                              ),
+                              child: Text(
+                                _subscriptionManager.isProUser ? '已开通' : '未开通',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                  color: _subscriptionManager.isProUser
+                                      ? const Color(0xFF1B5E20)
+                                      : const Color(0xFF9A6700),
                                 ),
                               ),
                             ),
