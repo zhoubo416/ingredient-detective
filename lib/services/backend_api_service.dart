@@ -133,9 +133,21 @@ class BackendApiService {
       throw Exception('API 返回数据格式错误');
     }
 
+    // 如果详细结果已返回，直接使用
+    final detailedResultRaw = payload['detailed'];
+    final detailedResult = detailedResultRaw is Map
+        ? Map<String, dynamic>.from(detailedResultRaw)
+        : null;
+
+    if (detailedResult != null) {
+      detailedResult['analysisId'] = analysisId;
+      return FoodAnalysisResult.fromMap(detailedResult);
+    }
+
+    // 否则返回快速结果（带有 analysisId 以便后续轮询）
     return _buildQuickAnalysisResult(
       quickResult,
-      analysisId: analysisId, // 存储 ID 以便后续轮询
+      analysisId: analysisId,
     );
   }
 
@@ -189,9 +201,21 @@ class BackendApiService {
       throw Exception('API 返回数据格式错误');
     }
 
+    // 如果详细结果已返回，直接使用
+    final detailedResultRaw = payload['detailed'];
+    final detailedResult = detailedResultRaw is Map
+        ? Map<String, dynamic>.from(detailedResultRaw)
+        : null;
+
+    if (detailedResult != null) {
+      detailedResult['analysisId'] = analysisId;
+      return FoodAnalysisResult.fromMap(detailedResult);
+    }
+
+    // 否则返回快速结果（带有 analysisId 以便后续轮询）
     return _buildQuickAnalysisResult(
       quickResult,
-      analysisId: analysisId, // 存储 ID 以便后续轮询
+      analysisId: analysisId,
     );
   }
 

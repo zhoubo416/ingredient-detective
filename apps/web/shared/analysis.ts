@@ -154,6 +154,7 @@ export interface QuickAnalysisResult {
 export interface AnalysisResponse {
   id: string // 分析记录 ID
   quick: QuickAnalysisResult // 立即可用
+  detailed?: FoodAnalysisResult // 详细分析结果（可选）
   isComplete: boolean // 是否已生成详细分析
 }
 

@@ -12,6 +12,7 @@ const props = withDefaults(defineProps<{
 
 const emit = defineEmits<{
   completed: [item: AnalysisHistoryItem]
+  startAnalyzing: []
 }>()
 
 const mode = ref<'image' | 'manual'>('image')
@@ -113,6 +114,34 @@ async function handleSubmit() {
   loading.value = true
   errorMessage.value = ''
 
+  const tempId = `temp-${Date.now()}`
+  const tempItem: AnalysisHistoryItem = {
+    id: tempId,
+    sourceType: 'image',
+    imageFilename: null,
+    ingredientLines: [],
+    rawOcrText: null,
+    foodName: productName.value || '分析中',
+    healthScore: 0,
+    createdAt: new Date().toISOString(),
+    result: {
+      foodName: productName.value || '分析中',
+      ingredients: [],
+      healthScore: 0,
+      compliance: { status: 'pending', description: '', issues: [] },
+      processing: { level: '待分析', description: '', score: 0 },
+      claims: { detectedClaims: [], supportedClaims: [], questionableClaims: [], assessment: '' },
+      overallAssessment: '',
+      recommendations: '',
+      warnings: [],
+      detailedStatus: 'pending',
+      analysisTime: new Date().toISOString()
+    }
+  }
+
+  emit('completed', tempItem)
+  emit('startAnalyzing')
+
   try {
     const formData = new FormData()
     if (selectedImage.value) {
@@ -125,28 +154,27 @@ async function handleSubmit() {
       formData.append('productName', productName.value)
     }
 
-    // 提交分析请求
     const response = await $fetch<AnalysisResponse>('/api/analysis', {
       method: 'POST',
       body: formData
     })
 
-    // 立即发出已完成事件（带快速结果）
-    const quickHistoryItem: AnalysisHistoryItem = {
+    const historyItem: AnalysisHistoryItem = {
       id: response.id,
       sourceType: 'image',
       imageFilename: null,
       ingredientLines: [],
       rawOcrText: null,
-      foodName: response.quick.foodName,
-      healthScore: response.quick.healthScore,
+      foodName: response.detailed?.foodName || response.quick.foodName,
+      healthScore: response.detailed?.healthScore || response.quick.healthScore,
       createdAt: new Date().toISOString(),
-      result: {
+      result: response.detailed || {
         foodName: response.quick.foodName,
         ingredients: [],
         healthScore: response.quick.healthScore,
         compliance: {
           ...response.quick.compliance,
+          description: '',
           issues: []
         },
         processing: {
@@ -162,16 +190,12 @@ async function handleSubmit() {
         overallAssessment: response.quick.overallAssessment,
         recommendations: response.quick.recommendations,
         warnings: [],
+        detailedStatus: response.isComplete ? 'complete' : 'pending',
         analysisTime: new Date().toISOString()
       }
     }
 
-    emit('completed', quickHistoryItem)
-
-    // 后台轮询完整结果
-    if (!response.isComplete) {
-      pollForDetailedAnalysis(response.id)
-    }
+    emit('completed', historyItem)
   } catch (error) {
     errorMessage.value = error instanceof Error ? error.message : '分析失败'
   } finally {
@@ -227,90 +251,96 @@ onBeforeUnmount(() => {
             :class="mode === 'image' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'"
             @click="handleModeChange('image')"
           >
-            上传图片
+            图片
           </button>
           <button
             class="rounded-2xl px-4 py-2 text-sm font-semibold transition"
             :class="mode === 'manual' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'"
             @click="handleModeChange('manual')"
           >
-            手动输入
+            输入
           </button>
         </div>
       </div>
     </template>
 
-    <div class="space-y-5">
-      <UAlert
-        v-if="isAnalysisLocked"
-        color="warning"
-        variant="soft"
-        :title="subscriptionLoading ? '正在检查 Pro 权限' : '请先下载移动端并开通 Pro'"
-        :description="lockedDescription"
-      />
-
-      <UAlert
-        v-if="errorMessage"
-        color="error"
-        variant="soft"
-        title="分析失败"
-        :description="errorMessage"
-      />
-
-      <div class="space-y-2">
-        <label class="text-sm font-medium text-slate-700" for="product-name">商品名称</label>
-        <UInput
-          id="product-name"
-          v-model="productName"
-          :disabled="isAnalysisLocked"
-          size="xl"
-          class="w-full"
-          placeholder="可选，留空则由系统自动判断食品类型"
+    <div class="flex flex-col" style="height: 42vh">
+      <div class="flex-1 flex flex-col space-y-3 overflow-hidden">
+        <UAlert
+          v-if="isAnalysisLocked"
+          color="warning"
+          variant="soft"
+          :title="subscriptionLoading ? '正在检查 Pro 权限' : '请先下载移动端并开通 Pro'"
+          :description="lockedDescription"
+          class="shrink-0"
         />
-      </div>
 
-      <div v-if="mode === 'image'" class="space-y-4">
-        <button
-          type="button"
-          class="flex min-h-52 w-full flex-col items-center justify-center rounded-[1.75rem] border border-dashed border-slate-300 bg-white/70 px-6 py-8 text-center transition"
-          :class="isAnalysisLocked ? 'cursor-not-allowed opacity-60' : 'cursor-pointer hover:border-emerald-500 hover:bg-emerald-50/50'"
-          @click="handleImagePickerClick"
-        >
-          <UIcon name="i-lucide-image-plus" class="text-3xl text-emerald-700" />
-          <p class="mt-4 text-base font-semibold text-slate-900">选择食品包装图片</p>
-          <p class="mt-2 text-sm text-slate-500">建议上传正面清晰、包含完整配料表的照片</p>
-          <input ref="fileInput" class="hidden" type="file" accept="image/*" :disabled="isAnalysisLocked" @change="handleFileChange" />
-        </button>
+        <UAlert
+          v-if="errorMessage"
+          color="error"
+          variant="soft"
+          title="分析失败"
+          :description="errorMessage"
+          class="shrink-0"
+        />
 
-        <div v-if="previewUrl" class="overflow-hidden rounded-[1.75rem] border border-slate-900/5 bg-white/80 p-3">
-          <img :src="previewUrl" alt="Preview" class="h-64 w-full rounded-[1.25rem] object-cover" />
-        </div>
-      </div>
-
-      <div v-else class="space-y-2">
-        <label class="text-sm font-medium text-slate-700" for="ingredients-text">配料文本</label>
-        <div class="relative">
-          <UTextarea
-            id="ingredients-text"
-            v-model="ingredientsText"
+        <div class="space-y-1.5 shrink-0">
+          <label class="text-sm font-medium text-slate-700" for="product-name">商品名称</label>
+          <UInput
+            id="product-name"
+            v-model="productName"
             :disabled="isAnalysisLocked"
-            :rows="8"
+            size="lg"
             class="w-full"
-            placeholder="例如：生牛乳、白砂糖、乳清蛋白粉、果胶……"
+            placeholder="可选，留空则由系统自动判断食品类型"
           />
+        </div>
+
+        <div v-if="mode === 'image'" class="space-y-3 flex-1 min-h-0">
           <button
-            v-if="isAnalysisLocked"
             type="button"
-            class="absolute inset-0 rounded-2xl"
-            aria-label="打开移动端下载弹窗"
-            @click="openDownloadPrompt"
-          />
+            class="flex w-full flex-col items-center justify-center rounded-[1.75rem] border border-dashed border-slate-300 bg-white/70 px-6 text-center transition h-full"
+            :class="isAnalysisLocked ? 'cursor-not-allowed opacity-60' : 'cursor-pointer hover:border-emerald-500 hover:bg-emerald-50/50'"
+            @click="handleImagePickerClick"
+          >
+            <div v-if="previewUrl" class="overflow-hidden rounded-[1.75rem] border border-slate-900/5 bg-white/80 p-1 w-full h-full">
+              <img :src="previewUrl" alt="Preview" class="w-full h-full rounded-[1.25rem] object-contain" />
+            </div>
+            <template v-show="!previewUrl">
+              <UIcon name="i-lucide-image-plus" class="text-2xl text-emerald-700" />
+              <p class="mt-2 text-sm font-semibold text-slate-900">选择食品包装图片</p>
+              <p class="mt-1 text-xs text-slate-500">建议上传正面清晰、包含完整配料表的照片</p>
+              <input ref="fileInput" class="hidden" type="file" accept="image/*" :disabled="isAnalysisLocked" @change="handleFileChange" />
+            </template>
+          </button>
+        </div>
+
+        <div v-else class="space-y-1.5 flex-1 min-h-0">
+          <label class="text-sm font-medium text-slate-700" for="ingredients-text">配料文本</label>
+          <div class="relative h-full">
+            <UTextarea
+              id="ingredients-text"
+              v-model="ingredientsText"
+              :disabled="isAnalysisLocked"
+              class="w-full h-full resize-none"
+              placeholder="例如：生牛乳、白砂糖、乳清蛋白粉、果胶……"
+            />
+            <button
+              v-if="isAnalysisLocked"
+              type="button"
+              class="absolute inset-0 rounded-2xl"
+              aria-label="打开移动端下载弹窗"
+              @click="openDownloadPrompt"
+            />
+          </div>
         </div>
       </div>
 
-      <UButton size="xl" :loading="loading" :disabled="subscriptionLoading" @click="handleSubmit">
-        {{ submitLabel }}
-      </UButton>
+      <div class="space-y-2 pt-3 mt-3 border-t border-slate-200 shrink-0">
+        <UButton size="lg" :loading="loading" :disabled="subscriptionLoading" @click="handleSubmit" class="w-full">
+          {{ submitLabel }}
+        </UButton>
+      </div>
     </div>
   </UCard>
 

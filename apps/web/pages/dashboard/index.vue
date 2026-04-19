@@ -13,6 +13,7 @@ useSeoMeta({
 const user = useSupabaseUser()
 const history = ref<AnalysisHistoryItem[]>([])
 const selected = ref<AnalysisHistoryItem | null>(null)
+const isAnalyzing = ref(false)
 const loading = ref(true)
 const errorMessage = ref('')
 const subscription = ref<SubscriptionStatusResponse | null>(null)
@@ -78,6 +79,7 @@ async function loadSubscriptionStatus() {
 function handleCompleted(item: AnalysisHistoryItem) {
   history.value = [item, ...history.value.filter(existing => existing.id !== item.id)]
   selected.value = item
+  isAnalyzing.value = item.result?.detailedStatus === 'pending'
 }
 
 async function handleRemove(id: string) {
@@ -138,14 +140,21 @@ onMounted(() => {
       :description="subscriptionError"
     />
 
-    <div class="grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
+    <div class="grid gap-6 xl:grid-cols-[0.9fr_1.1fr] items-stretch">
       <AnalysisComposer
         :is-pro="isProUser"
         :subscription-loading="subscriptionLoading"
         :upgrade-message="upgradeMessage"
         @completed="handleCompleted"
+        @start-analyzing="isAnalyzing = true"
       />
-      <AnalysisResultCard :result="selected?.result ?? null" />
+      <div class="flex flex-col">
+        <AnalysisResultCard
+          :result="selected?.result ?? null"
+          :analyzing="isAnalyzing"
+          class="xl:sticky xl:top-4 flex-1"
+        />
+      </div>
     </div>
 
     <section class="space-y-4 reveal-up delay-1">

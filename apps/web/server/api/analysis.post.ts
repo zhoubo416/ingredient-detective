@@ -1,10 +1,9 @@
 import { randomUUID } from 'node:crypto'
-import { Buffer } from 'node:buffer'
 import { readBody, readMultipartFormData, setResponseHeader } from 'h3'
 import { z } from 'zod'
-import type { AnalysisHistoryItem, AnalysisResponse, AnalysisSourceType } from '~/shared/analysis'
+import type { AnalysisResponse, AnalysisSourceType, FoodAnalysisResult } from '~/shared/analysis'
 import { normalizeIngredientLines } from '~/shared/analysis'
-import { analyzeIngredients, analyzeQuickMetrics, normalizeFoodAnalysisResult } from '~/server/utils/analysis'
+import { analyzeIngredients, analyzeQuickMetrics } from '~/server/utils/analysis'
 import type { UserHealthProfileContext } from '~/server/utils/analysis'
 import { decodeBase64Image, extractIngredientLines, extractIngredientsFromImageBuffer } from '~/server/utils/ocr'
 import { requireProAccess } from '~/server/utils/subscription'
@@ -27,27 +26,6 @@ const bodySchema = z.object({
   productName: z.string().trim().optional(),
   userHealthProfile: healthProfileSchema.optional()
 })
-
-function mapHistoryRow(row: Record<string, unknown>): AnalysisHistoryItem {
-  const ingredientLines = Array.isArray(row.ingredient_lines) ? row.ingredient_lines.map(item => String(item)) : []
-  const foodName = String(row.food_name)
-
-  return {
-    id: String(row.id),
-    sourceType: row.source_type as AnalysisSourceType,
-    imageFilename: row.image_filename ? String(row.image_filename) : null,
-    ingredientLines,
-    rawOcrText: row.raw_ocr_text ? String(row.raw_ocr_text) : null,
-    foodName,
-    healthScore: Number(row.health_score ?? 0),
-    createdAt: String(row.created_at),
-    result: normalizeFoodAnalysisResult(row.result, ingredientLines, {
-      foodName,
-      healthScore: Number(row.health_score ?? 0),
-      analysisTime: String(row.created_at)
-    })
-  }
-}
 
 function buildStoredQuickResult(quick: AnalysisResponse['quick']) {
   return {
@@ -92,59 +70,55 @@ export default defineEventHandler(async event => {
   let imageFilename: string | null = null
   let ingredientLines: string[] = []
   let rawOcrText: string | null = null
-  let imageBuffer: Buffer | null = null
   let userHealthProfile: UserHealthProfileContext | null = null
 
-  if (contentType.includes('multipart/form-data')) {
-    const formData = await measureTiming(timings, 'request.parse_multipart', () => readMultipartFormData(event))
-    const imagePart = formData?.find(part => part.type?.startsWith('image/') || part.name === 'image')
-    const ingredientPart = formData?.find(part => part.name === 'ingredientsText')
-    const productPart = formData?.find(part => part.name === 'productName')
-    const healthProfilePart = formData?.find(part => part.name === 'userHealthProfile')
+  const parsePromise = (async () => {
+    if (contentType.includes('multipart/form-data')) {
+      const formData = await measureTiming(timings, 'request.parse_multipart', () => readMultipartFormData(event))
+      const imagePart = formData?.find(part => part.type?.startsWith('image/') || part.name === 'image')
+      const ingredientPart = formData?.find(part => part.name === 'ingredientsText')
+      const productPart = formData?.find(part => part.name === 'productName')
+      const healthProfilePart = formData?.find(part => part.name === 'userHealthProfile')
 
-    productName = productPart?.data?.toString('utf8').trim() ?? ''
-    if (healthProfilePart?.data?.length) {
-      try {
-        const parsed = JSON.parse(healthProfilePart.data.toString('utf8'))
-        const validated = healthProfileSchema.safeParse(parsed)
-        if (validated.success) {
-          userHealthProfile = validated.data
+      productName = productPart?.data?.toString('utf8').trim() ?? ''
+      if (healthProfilePart?.data?.length) {
+        try {
+          const parsed = JSON.parse(healthProfilePart.data.toString('utf8'))
+          const validated = healthProfileSchema.safeParse(parsed)
+          if (validated.success) {
+            userHealthProfile = validated.data
+          }
+        } catch {
+          // ignore invalid client health profile
         }
-      } catch {
-        // ignore invalid client health profile
+      }
+
+      if (imagePart?.data?.length) {
+        sourceType = 'image'
+        imageFilename = imagePart.filename ?? null
+        return imagePart.data
+      } else if (ingredientPart?.data?.length) {
+        ingredientLines = normalizeIngredientLines(ingredientPart.data.toString('utf8'))
+      }
+    } else {
+      const rawBody = await measureTiming(timings, 'request.read_body', () => readBody(event))
+      const body = bodySchema.parse(rawBody)
+      recordTiming(timings, 'request.parse_json', 0)
+      productName = body.productName ?? ''
+      userHealthProfile = body.userHealthProfile ?? null
+
+      if (body.imageBase64) {
+        sourceType = 'image'
+        imageFilename = body.filename ?? null
+        return decodeBase64Image(body.imageBase64)
+      } else if (body.ingredientsText) {
+        ingredientLines = normalizeIngredientLines(body.ingredientsText)
       }
     }
+    return null
+  })()
 
-    if (imagePart?.data?.length) {
-      sourceType = 'image'
-      imageFilename = imagePart.filename ?? null
-      imageBuffer = imagePart.data
-      recordTiming(timings, 'request.image_bytes', 0, {
-        bytes: imagePart.data.byteLength,
-        filename: imageFilename
-      })
-    } else if (ingredientPart?.data?.length) {
-      ingredientLines = normalizeIngredientLines(ingredientPart.data.toString('utf8'))
-    }
-  } else {
-    const rawBody = await measureTiming(timings, 'request.read_body', () => readBody(event))
-    const body = bodySchema.parse(rawBody)
-    recordTiming(timings, 'request.parse_json', 0)
-    productName = body.productName ?? ''
-    userHealthProfile = body.userHealthProfile ?? null
-
-    if (body.imageBase64) {
-      sourceType = 'image'
-      imageFilename = body.filename ?? null
-      imageBuffer = decodeBase64Image(body.imageBase64)
-      recordTiming(timings, 'request.image_bytes', 0, {
-        bytes: imageBuffer.byteLength,
-        filename: imageFilename
-      })
-    } else if (body.ingredientsText) {
-      ingredientLines = normalizeIngredientLines(body.ingredientsText)
-    }
-  }
+  const imageBuffer = await parsePromise
 
   if (imageBuffer) {
     const ocr = await measureTiming(
@@ -166,61 +140,68 @@ export default defineEventHandler(async event => {
 
   const resolvedProductName = productName.trim()
   const detailedTimings: TimingMap = {}
-  const detailedStartedAt = Date.now()
-  const detailedAnalysisPromise = analyzeIngredients(
-    ingredientLines,
-    resolvedProductName,
-    userHealthProfile,
-    detailedTimings
-  )
-  detailedAnalysisPromise.catch(() => {})
 
-  // 第一阶段：快速分析（立即返回）
-  const quick = await measureTiming(
-    timings,
-    'ai.quick',
-    () => analyzeQuickMetrics(ingredientLines, resolvedProductName, userHealthProfile, timings)
-  )
-  const storedQuickResult = buildStoredQuickResult(quick)
+  const [quick, detailed] = await Promise.all([
+    measureTiming(timings, 'ai.quick', () =>
+      analyzeQuickMetrics(ingredientLines, resolvedProductName, userHealthProfile, timings)
+    ),
+    measureTiming(timings, 'ai.detailed', () =>
+      analyzeIngredients(ingredientLines, resolvedProductName, userHealthProfile, detailedTimings)
+    )
+  ])
 
-  // 保存到数据库（先保存快速结果）
-  const supabase = getSupabaseAdminClient()
-  const { data, error } = await measureTiming(timings, 'db.insert', async () => {
-    return supabase
-      .from('analysis_results')
-      .insert({
-        user_id: user.id,
-        source_type: sourceType,
-        image_filename: imageFilename,
-        raw_ocr_text: rawOcrText,
-        ingredient_lines: ingredientLines as unknown as Json,
-        food_name: quick.foodName,
-        health_score: quick.healthScore,
-        result: storedQuickResult as unknown as Json
-      })
-      .select('id')
-      .single()
-  })
-
-  if (error || !data) {
-    throw createError({
-      statusCode: 500,
-      statusMessage: error?.message ?? 'Failed to save analysis result.'
-    })
+  const fullResult: FoodAnalysisResult = {
+    ...buildStoredQuickResult(quick),
+    ...detailed,
+    foodName: quick.foodName || detailed.foodName || quick.foodName,
+    healthScore: quick.healthScore || detailed.healthScore || quick.healthScore,
+    overallAssessment: quick.overallAssessment || detailed.overallAssessment || quick.overallAssessment,
+    recommendations: quick.recommendations || detailed.recommendations || quick.recommendations,
+    compliance: quick.compliance.status ? {
+      status: quick.compliance.status,
+      description: quick.compliance.description,
+      issues: detailed.compliance?.issues || []
+    } : detailed.compliance,
+    processing: quick.processing.level ? {
+      level: quick.processing.level,
+      description: detailed.processing?.description || '',
+      score: quick.processing.score
+    } : detailed.processing,
+    detailedStatus: 'complete',
+    detailedError: ''
   }
 
-  const analysisId = data.id
+  const supabase = getSupabaseAdminClient()
 
-  // 第二阶段：异步生成详细分析（后台执行，不阻塞响应）
   event.waitUntil(
-    generateDetailedAnalysisInBackground(
-      String(analysisId),
-      user.id,
-      storedQuickResult,
-      detailedAnalysisPromise,
-      detailedTimings,
-      detailedStartedAt
-    )
+    (async () => {
+      const { data, error } = await supabase
+        .from('analysis_results')
+        .insert({
+          user_id: user.id,
+          source_type: sourceType,
+          image_filename: imageFilename,
+          raw_ocr_text: rawOcrText,
+          ingredient_lines: ingredientLines as unknown as Json,
+          food_name: quick.foodName,
+          health_score: quick.healthScore,
+          result: fullResult as unknown as Json
+        })
+        .select('id')
+        .single()
+
+      if (error || !data) {
+        console.error('[db-insert-error]', error?.message)
+        return
+      }
+
+      await supabase
+        .from('analysis_results')
+        .update({
+          result: fullResult as unknown as Json
+        })
+        .eq('id', data.id)
+    })()
   )
 
   const totalMs = Date.now() - startedAt
@@ -229,91 +210,22 @@ export default defineEventHandler(async event => {
   setResponseHeader(event, 'X-Request-Id', requestId)
   setResponseHeader(event, 'X-Analysis-Timing', JSON.stringify({
     requestId,
-    stage: 'quick',
+    stage: 'full',
     durationMs: totalMs,
     ...flattenTimingMap(timings)
   }))
 
-  console.info('[analysis-quick]', JSON.stringify({
+  console.info('[analysis-complete]', JSON.stringify({
     requestId,
     userId: user.id,
-    analysisId,
-    totalMs
+    totalMs,
+    ingredientCount: detailed.ingredients?.length ?? 0
   }))
 
-  // 返回快速结果 + 记录 ID
   return {
-    id: String(analysisId),
+    id: 'pending',
     quick,
-    isComplete: false
+    detailed: fullResult,
+    isComplete: true
   } satisfies AnalysisResponse
 })
-
-async function generateDetailedAnalysisInBackground(
-  analysisId: string,
-  userId: string,
-  quickResultSnapshot: ReturnType<typeof buildStoredQuickResult>,
-  detailedAnalysisPromise: ReturnType<typeof analyzeIngredients>,
-  timings: TimingMap,
-  startedAt: number
-) {
-  try {
-    const fullAnalysis = await detailedAnalysisPromise
-    recordTiming(timings, 'ai.detailed', Date.now() - startedAt)
-
-    const supabase = getSupabaseAdminClient()
-    await measureTiming(timings, 'db.update', async () => {
-      return supabase
-        .from('analysis_results')
-        .update({
-          result: {
-            ...quickResultSnapshot,
-            ...fullAnalysis,
-            // 保留 quick 阶段的结构化数据（detailed 阶段这些字段为空）
-            foodName: quickResultSnapshot.foodName || fullAnalysis.foodName,
-            healthScore: quickResultSnapshot.healthScore || fullAnalysis.healthScore,
-            overallAssessment: quickResultSnapshot.overallAssessment || fullAnalysis.overallAssessment,
-            recommendations: quickResultSnapshot.recommendations || fullAnalysis.recommendations,
-            compliance: quickResultSnapshot.compliance.status ? quickResultSnapshot.compliance : fullAnalysis.compliance,
-            processing: quickResultSnapshot.processing.level ? quickResultSnapshot.processing : fullAnalysis.processing,
-            detailedStatus: 'complete',
-            detailedError: ''
-          } as unknown as Json
-        })
-        .eq('id', analysisId)
-    })
-
-    const totalMs = Date.now() - startedAt
-
-    console.info('[analysis-detailed-complete]', JSON.stringify({
-      analysisId,
-      userId,
-      totalMs,
-      ingredientCount: fullAnalysis.ingredients?.length ?? 0,
-      timings
-    }))
-  } catch (err) {
-    const supabase = getSupabaseAdminClient()
-    const errorMessage = err instanceof Error ? err.message : String(err)
-    const errorStack = err instanceof Error ? err.stack : undefined
-
-    await supabase
-      .from('analysis_results')
-      .update({
-        result: {
-          ...quickResultSnapshot,
-          detailedStatus: 'failed',
-          detailedError: errorMessage
-        } as unknown as Json
-      })
-      .eq('id', analysisId)
-
-    console.error('[analysis-detailed-error]', JSON.stringify({
-      analysisId,
-      userId,
-      error: errorMessage,
-      stack: errorStack,
-      totalMs: Date.now() - startedAt
-    }))
-  }
-}

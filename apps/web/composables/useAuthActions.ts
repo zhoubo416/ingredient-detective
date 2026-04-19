@@ -39,10 +39,7 @@ export function useAuthActions() {
   async function resendSignupConfirmation(email: string) {
     const { error, data } = await client.auth.resend({
       type: 'signup',
-      email,
-      options: {
-        emailRedirectTo: buildRedirectUrl('/auth/confirm')
-      }
+      email
     })
 
     if (error) {

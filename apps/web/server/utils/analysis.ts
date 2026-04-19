@@ -354,14 +354,14 @@ export async function analyzeQuickMetrics(
   "overallAssessment": "一句话总体评价",
   "compliance": {"status": "合规/不合规/待确认", "description": "简述"},
   "processing": {"level": "轻/中/高", "score": 1-5},
-  "recommendations": "一句建议"
+  "recommendations": "一句建议，要针对当前用户健康情况（如果有）"
 }`
 
   const healthPrompt = buildUserHealthContextPrompt(userHealthProfile)
   const userPrompt = `快速评估产品 "${productName}" 的配料：${ingredients.join(', ')}。
 ${healthPrompt || '无额外用户健康信息。'}
 如果未提供商品名称，请根据配料判断并返回一个准确、克制的食品名称或品类。
-在 overallAssessment 和 recommendations 中体现个性化提醒（如控糖、控盐等）。只返回 JSON，无其他文本。`
+在 overallAssessment 和 recommendations 中体现个性化提醒（针对当前用户的健康情况如果有，如控糖、控盐等）。只返回 JSON，无其他文本。`
 
   const { signal, clear } = createTimeoutSignal()
 
@@ -427,28 +427,95 @@ export async function analyzeIngredients(
   productName: string,
   userHealthProfile?: UserHealthProfileContext | null,
   timings?: TimingMap
-) {
+): Promise<FoodAnalysisResult> {
   const llm = resolveLlmConfig()
-
   if (!llm) {
     throw new Error('LLM is not configured')
   }
 
-  const systemPrompt = `你是配料分析工具。直接输出分析结果，禁止任何开场白、自我介绍、寒暄或总结语。第一行必须是”## “开头的配料标题。严格按以下 Markdown 格式逐个分析配料：
+  const BATCH_SIZE = 5
+  const batches: string[][] = []
+  for (let i = 0; i < ingredients.length; i += BATCH_SIZE) {
+    batches.push(ingredients.slice(i, i + BATCH_SIZE))
+  }
+
+  const totalStartedAt = Date.now()
+  console.info('[detailed-analysis-batch]', {
+    totalIngredients: ingredients.length,
+    batchSize: BATCH_SIZE,
+    batchCount: batches.length,
+    productName
+  })
+
+  const batchTimings: Record<number, number> = {}
+  const batchResults = await Promise.all(
+    batches.map(async (batch, index) => {
+      const batchStart = Date.now()
+      const content = await analyzeBatch(batch, productName, userHealthProfile)
+      const batchDuration = Date.now() - batchStart
+      batchTimings[index] = batchDuration
+      console.info(`[detailed-analysis-batch-${index}]`, {
+        batchIndex: index,
+        ingredientCount: batch.length,
+        ingredients: batch.join(', '),
+        durationMs: batchDuration
+      })
+      return { index, content }
+    })
+  )
+
+  const totalDuration = Date.now() - totalStartedAt
+  batchResults.sort((a, b) => a.index - b.index)
+  const combinedMarkdown = batchResults.map(r => r.content).join('\n')
+
+  recordTiming(timings ?? {}, 'ai.total', totalDuration, {
+    ingredientCount: ingredients.length,
+    batchCount: batches.length,
+    batchTimings: JSON.stringify(batchTimings)
+  })
+
+  return {
+    foodName: '',
+    ingredients: [],
+    healthScore: 0,
+    compliance: { status: '', description: '', issues: [] },
+    processing: { level: '', description: '', score: 0 },
+    claims: { detectedClaims: [], supportedClaims: [], questionableClaims: [], assessment: '' },
+    overallAssessment: '',
+    recommendations: '',
+    warnings: [],
+    detailedStatus: 'complete' as const,
+    detailedError: '',
+    analysisTime: new Date().toISOString(),
+    rawMarkdown: combinedMarkdown
+  } satisfies FoodAnalysisResult & { rawMarkdown: string }
+}
+
+async function analyzeBatch(
+  ingredientBatch: string[],
+  productName: string,
+  userHealthProfile?: UserHealthProfileContext | null
+): Promise<string> {
+  const llm = resolveLlmConfig()
+  if (!llm) {
+    throw new Error('LLM is not configured')
+  }
+
+  const systemPrompt = `你是配料分析工具。直接输出分析结果，禁止任何开场白、自我介绍、寒暄或总结语。第一行必须是"## "开头的配料标题。严格按以下 Markdown 格式逐个分析配料：
 
 ## 配料名称
 - 作用: [作用与营养价值，25字内]
 - 安全: [合规✅/⚠️/❌] [加工度 低/中/高] [风险emoji+一句话说明，20字内]
-- 提醒: [如有不良影响或建议写在此，无则写”无特别提醒”，25字内]
+- 提醒: [如有不良影响或建议写在此，如果是添加剂要提示用户可能的风险，无则写"无特别提醒"，25字内]
 
 [为每个配料重复上面的格式]`
 
   const healthPrompt = buildUserHealthContextPrompt(userHealthProfile)
-  const userPrompt = `产品”${productName}”的配料：${ingredients.join(', ')}。
+  const userPrompt = `产品"${productName}"的配料：${ingredientBatch.join(', ')}。
 ${healthPrompt || ''}
 
 【要求】
-- 直接输出配料分析，不要任何开场白或引言（如”好的”、”我来分析”、”作为分析师”等）
+- 直接输出配料分析，不要任何开场白或引言（如"好的"、"我来分析"、"作为分析师"等）
 - 只分析上面列出的真实配料，忽略产品标准号、生产许可证等非配料内容
 - 每个配料严格只输出3行（作用、安全、提醒），保持简洁
 - 按 Markdown 格式输出，每个配料都要有所有字段`
@@ -456,13 +523,6 @@ ${healthPrompt || ''}
   const { signal, clear } = createTimeoutSignal()
 
   try {
-    console.info('[detailed-analysis-start]', {
-      ingredientCount: ingredients.length,
-      productName,
-      ingredients: ingredients.join(', ')
-    })
-
-    const requestStartedAt = Date.now()
     const requestBody = buildRequestBody(
       llm,
       [
@@ -470,24 +530,9 @@ ${healthPrompt || ''}
         { role: 'user', content: userPrompt }
       ],
       0.3,
-      2000,  // 精简为3字段，2000 tokens 足够
-      false  // 详细分析使用 Markdown 格式，不启用 JSON 模式
+      2000,
+      false
     )
-
-    console.info('[llm-request-params]', {
-      provider: llm.provider,
-      model: llm.model,
-      messages: [
-        { role: 'system', contentLength: systemPrompt.length },
-        { role: 'user', contentLength: userPrompt.length }
-      ],
-      temperature: 0.3,
-      maxTokens: 3000,
-      url: llm.url
-    })
-
-    console.info('[llm-system-prompt]', systemPrompt)
-    console.info('[llm-user-prompt]', userPrompt)
 
     const response = await fetch(llm.url, {
       method: 'POST',
@@ -498,73 +543,20 @@ ${healthPrompt || ''}
       body: JSON.stringify(requestBody),
       signal
     })
-    recordTiming(timings ?? {}, 'ai.fetch', Date.now() - requestStartedAt, {
-      provider: llm.provider,
-      model: llm.model,
-      ingredientCount: ingredients.length,
-      promptChars: systemPrompt.length + userPrompt.length
-    })
-
-    const parseStartedAt = Date.now()
-    const payload = await response.json() as {
-      choices?: Array<{ message?: { content?: string } }>
-    }
-    recordTiming(timings ?? {}, 'ai.read_response', Date.now() - parseStartedAt)
-
-    console.info('[llm-response-status]', {
-      status: response.status,
-      statusText: response.statusText,
-      ok: response.ok
-    })
 
     if (!response.ok) {
-      console.error('[llm-response-error]', JSON.stringify(payload))
       throw new Error(`Detailed analysis API error: ${response.status}`)
     }
 
+    const payload = await response.json() as {
+      choices?: Array<{ message?: { content?: string } }>
+    }
     const content = payload.choices?.[0]?.message?.content
     if (!content) {
-      console.error('[llm-response-empty]', { payload })
       throw new Error('Detailed analysis response is empty')
     }
 
-    console.info('[llm-response-content-length]', { contentLength: content.length })
-    console.info('[llm-response-content]', content.substring(0, 2000))
-    console.info('[llm-response-content-full]', content)
-
-    // 直接返回原始 Markdown，不进行任何处理
-    const normalizeStartedAt = Date.now()
-    recordTiming(timings ?? {}, 'ai.parse_markdown', Date.now() - normalizeStartedAt, {
-      contentChars: content.length
-    })
-
-    console.info('[detailed-analysis-raw-markdown]', {
-      contentLength: content.length,
-      preview: content.substring(0, 200)
-    })
-
-    return {
-      foodName: '',
-      ingredients: [],
-      healthScore: 0,
-      compliance: { status: '', description: '', issues: [] },
-      processing: { level: '', description: '', score: 0 },
-      claims: { detectedClaims: [], supportedClaims: [], questionableClaims: [], assessment: '' },
-      overallAssessment: '',
-      recommendations: '',
-      warnings: [],
-      detailedStatus: 'complete' as const,
-      detailedError: '',
-      analysisTime: new Date().toISOString(),
-      // 直接返回原始 Markdown
-      rawMarkdown: content
-    } satisfies FoodAnalysisResult & { rawMarkdown: string }
-  } catch (error) {
-    console.error('[detailed-analysis-error]', {
-      error: error instanceof Error ? error.message : String(error),
-      stack: error instanceof Error ? error.stack : undefined
-    })
-    throw new Error(`Detailed analysis failed: ${error instanceof Error ? error.message : String(error)}`)
+    return content
   } finally {
     clear()
   }
