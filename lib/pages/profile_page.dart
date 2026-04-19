@@ -40,7 +40,7 @@ class _ProfilePageState extends State<ProfilePage> {
     _subscriptionManager.addListener(_handleSubscriptionChanged);
     _loadSettings();
     _loadStatistics();
-    _subscriptionManager.refreshSubscriptionStatus(syncWithBackend: true);
+    _subscriptionManager.reloadSubscriptionStatus();
   }
 
   @override

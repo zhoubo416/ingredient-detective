@@ -49,9 +49,7 @@ class _CameraPageState extends State<CameraPage> {
 
   Future<void> _warmUpSubscriptionStatus() async {
     try {
-      await _subscriptionManager.refreshSubscriptionStatus(
-        syncWithBackend: true,
-      );
+      await _subscriptionManager.reloadSubscriptionStatus();
     } catch (_) {
       // 忽略预热失败，实际使用时再提示。
     }
@@ -63,9 +61,7 @@ class _CameraPageState extends State<CameraPage> {
     });
 
     try {
-      await _subscriptionManager.refreshSubscriptionStatus(
-        syncWithBackend: true,
-      );
+      await _subscriptionManager.reloadSubscriptionStatus();
 
       if (_subscriptionManager.isProUser) {
         return true;

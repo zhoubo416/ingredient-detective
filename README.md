@@ -66,6 +66,43 @@ flutter run -d chrome
 
 不要用 `flutter run -d chrome --web-port 3000`，否则会和 Nuxt 后端抢占 `3000`，导致 `/api/analysis`、`/api/history` 请求打到错误的服务。
 
+### 3. iOS 真机调试
+
+在 iPhone 上调试时，`BACKEND_API_URL` 不能使用 `127.0.0.1`（那是手机自己），需要改成电脑的局域网 IP：
+
+```bash
+# 获取电脑局域网 IP
+ipconfig getifaddr en0
+# 输出类似：192.168.1.248
+```
+
+然后更新 `assets/.env`：
+
+```env
+BACKEND_API_URL=http://192.168.1.248:3000
+```
+
+同时 Nuxt 后端需要监听局域网：
+
+```bash
+cd apps/web
+npm run dev -- --port 3000 --host 0.0.0.0
+```
+
+首次运行 iOS 项目时，如果 CocoaPods 未安装：
+
+```bash
+# 使用 Homebrew Ruby 安装 CocoaPods
+export PATH="/opt/homebrew/opt/ruby/bin:/opt/homebrew/lib/ruby/gems/4.0.0/bin:$PATH"
+gem install cocoapods
+
+# 重新配置 iOS 依赖
+cd ios
+pod deintegrate
+pod install
+cd ..
+```
+
 ## 环境变量
 
 ### Flutter
@@ -82,8 +119,9 @@ REVENUECAT_API_KEY=...
 关键要求：
 
 - `BACKEND_API_URL` 必须指向 Nuxt 服务
-- 本地开发建议固定为 `http://127.0.0.1:3000`
-- `REVENUECAT_API_KEY` 必须配置，否则 Flutter 端无法正确读取和同步 `Pro` 状态
+- 本地模拟器开发建议固定为 `http://127.0.0.1:3000`
+- iOS 真机调试需要改成电脑的局域网 IP，例如 `http://192.168.1.248:3000`
+- `REVENUECAT_API_KEY` 为可选配置，未配置时 RevenueCat 不会初始化，但订阅状态仍可从后端 API 获取
 
 ### Nuxt
 
@@ -108,10 +146,11 @@ Nuxt 需要在 `apps/web/.env` 中配置：
 
 ### 会员状态同步
 
-Flutter 购买或恢复订阅后，会把 `RevenueCat` 的 `pro_access` 状态同步到 Supabase Auth 的 `app_metadata`。
+订阅状态统一由后端管理，存储在 Supabase Auth 的 `app_metadata` 中：
 
+- Flutter 和 Web 端都通过 `/api/subscription/status` 从后端获取订阅状态
+- Flutter 购买或恢复订阅后，通过 `/api/subscription/sync` 将 RevenueCat 状态同步到后端
 - Nuxt Web 后台读取这个状态来决定是否解锁分析功能
-- Flutter 分析入口也会先刷新并同步状态
 - 同一 Supabase 账号在 Flutter 升级后，Web 端重新进入后台即可继承 `Pro` 权限
 
 ## 常见问题

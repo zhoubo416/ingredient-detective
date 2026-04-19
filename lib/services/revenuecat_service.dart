@@ -1,5 +1,3 @@
-// ignore_for_file: deprecated_member_use
-
 import 'package:purchases_flutter/purchases_flutter.dart' as rc;
 import 'package:flutter/foundation.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
@@ -7,58 +5,29 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 class RevenueCatService {
   static final RevenueCatService _instance = RevenueCatService._internal();
 
-  factory RevenueCatService() {
-    return _instance;
-  }
+  factory RevenueCatService() => _instance;
 
   RevenueCatService._internal();
 
-  // 配置常量
-  static const String entitlementId = 'pro_access';
-  static const List<String> productIdentifiers = [
-    'monthly',
-    'yearly',
-    'lifetime',
-  ];
-
-  // 状态变量
-  rc.CustomerInfo? _customerInfo;
-  List<rc.Package>? _availablePackages;
   bool _isConfigured = false;
   String? _currentAppUserId;
 
-  // 初始化RevenueCat
-  Future<void> initialize() async {
+  Future<void> ensureConfigured() async {
+    if (_isConfigured) return;
+
+    final apiKey = dotenv.env['REVENUECAT_API_KEY'];
+    if (apiKey == null || apiKey.isEmpty) {
+      debugPrint('RevenueCat: REVENUECAT_API_KEY未配置');
+      return;
+    }
+
     try {
       await rc.Purchases.setLogLevel(rc.LogLevel.debug);
-
-      // 从环境变量获取API密钥
-      final apiKey = dotenv.env['REVENUECAT_API_KEY'];
-      if (apiKey == null || apiKey.isEmpty) {
-        throw Exception('REVENUECAT_API_KEY环境变量未配置');
-      }
-
-      if (!_isConfigured) {
-        final configuration = kDebugMode
-            ? rc.PurchasesConfiguration(apiKey)
-            : rc.PurchasesConfiguration(apiKey);
-
-        await rc.Purchases.configure(configuration);
-        _isConfigured = true;
-
-        rc.Purchases.addCustomerInfoUpdateListener((customerInfo) {
-          _customerInfo = customerInfo;
-          _notifyListeners();
-        });
-      }
-
-      // 获取初始客户信息
-      await _fetchCustomerInfo();
-
-      // 获取可用产品
-      await _fetchOfferings();
+      final configuration = rc.PurchasesConfiguration(apiKey);
+      await rc.Purchases.configure(configuration);
+      _isConfigured = true;
     } catch (e) {
-      throw Exception('RevenueCat初始化失败: $e');
+      debugPrint('RevenueCat配置失败: $e');
     }
   }
 
@@ -69,136 +38,45 @@ class RevenueCatService {
 
     if (normalized.isEmpty) {
       if (_currentAppUserId == null) return;
-      final customerInfo = await rc.Purchases.logOut();
-      _currentAppUserId = null;
-      _customerInfo = customerInfo;
-      _notifyListeners();
+      try {
+        await rc.Purchases.logOut();
+        _currentAppUserId = null;
+      } catch (e) {
+        debugPrint('RevenueCat logOut failed: $e');
+      }
       return;
     }
 
     if (_currentAppUserId == normalized) return;
 
-    final logInResult = await rc.Purchases.logIn(normalized);
-    _currentAppUserId = normalized;
-    _customerInfo = logInResult.customerInfo;
-    _notifyListeners();
-  }
-
-  Future<void> refreshCustomerInfo() async {
-    await _fetchCustomerInfo();
-  }
-
-  // 获取客户信息
-  Future<void> _fetchCustomerInfo() async {
     try {
-      _customerInfo = await rc.Purchases.getCustomerInfo();
-      _notifyListeners();
+      await rc.Purchases.logIn(normalized);
+      _currentAppUserId = normalized;
     } catch (e) {
-      // 获取客户信息失败
+      debugPrint('RevenueCat logIn failed: $e');
     }
   }
 
-  // 获取产品信息
-  Future<void> _fetchOfferings() async {
-    try {
-      final offerings = await rc.Purchases.getOfferings();
-      if (offerings.current != null) {
-        _availablePackages = offerings.current!.availablePackages;
-        _notifyListeners();
-      }
-    } catch (e) {
-      // 获取产品信息失败
-    }
-  }
+  bool get isProUser => false;
+  String? get subscriptionStatus => null;
+  String? get subscriptionExpirationDate => null;
+  List<rc.Package>? get availablePackages => null;
 
-  // 检查用户是否拥有Pro权限
-  bool get isProUser {
-    if (_customerInfo == null) return false;
-
-    final entitlements = _customerInfo!.entitlements.active;
-    return entitlements.containsKey(entitlementId);
-  }
-
-  // 获取用户订阅状态
-  String? get subscriptionStatus {
-    if (_customerInfo == null) return null;
-
-    final entitlement = _customerInfo!.entitlements.active[entitlementId];
-    if (entitlement == null) return '未订阅';
-
-    if (entitlement.isSandbox) {
-      return '沙盒环境 - ${entitlement.productIdentifier}';
-    }
-
-    return '已订阅 - ${entitlement.productIdentifier}';
-  }
-
-  // 获取订阅过期时间
-  String? get subscriptionExpirationDate {
-    if (_customerInfo == null) return null;
-
-    final entitlement = _customerInfo!.entitlements.active[entitlementId];
-    if (entitlement != null && entitlement.isActive) {
-      return entitlement.expirationDate;
-    }
-    return null;
-  }
-
-  // 获取可用产品包
-  List<rc.Package>? get availablePackages => _availablePackages;
-
-  // 购买产品
   Future<void> purchasePackage(rc.Package package) async {
-    try {
-      final purchaseResult = await rc.Purchases.purchasePackage(package);
-      _customerInfo = purchaseResult.customerInfo;
-      _notifyListeners();
-    } catch (e) {
-      rethrow;
+    await ensureConfigured();
+    if (!_isConfigured) {
+      throw Exception('RevenueCat未配置，无法购买');
     }
+    await rc.Purchases.purchasePackage(package);
   }
 
-  // 恢复购买
   Future<rc.CustomerInfo> restorePurchases() async {
-    try {
-      final customerInfo = await rc.Purchases.restorePurchases();
-      _customerInfo = customerInfo;
-      _notifyListeners();
-      return customerInfo;
-    } catch (e) {
-      rethrow;
+    await ensureConfigured();
+    if (!_isConfigured) {
+      throw Exception('RevenueCat未配置，无法恢复购买');
     }
+    return await rc.Purchases.restorePurchases();
   }
 
-  // 显示客户中心
-  Future<void> showCustomerCenter() async {
-    try {
-      // RevenueCat SDK 7.x版本中，客户中心功能需要配置
-      // 这里暂时留空，后续根据实际需求实现
-    } catch (e) {
-      rethrow;
-    }
-  }
-
-  // 监听器管理
-  final List<VoidCallback> _listeners = [];
-
-  void addListener(VoidCallback listener) {
-    _listeners.add(listener);
-  }
-
-  void removeListener(VoidCallback listener) {
-    _listeners.remove(listener);
-  }
-
-  void _notifyListeners() {
-    for (final listener in _listeners) {
-      listener();
-    }
-  }
-
-  // 清理资源
-  void dispose() {
-    _listeners.clear();
-  }
+  void dispose() {}
 }
