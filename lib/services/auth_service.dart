@@ -93,6 +93,18 @@ class AuthService {
     );
   }
 
+  Future<bool> signInWithGoogle() {
+    return _auth.signInWithOAuth(
+      OAuthProvider.google,
+    );
+  }
+
+  Future<bool> signInWithApple() {
+    return _auth.signInWithOAuth(
+      OAuthProvider.apple,
+    );
+  }
+
   Future<void> resetPasswordForEmail({
     required String email,
   }) {

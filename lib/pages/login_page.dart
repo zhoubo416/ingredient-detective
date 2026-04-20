@@ -17,130 +17,81 @@ class _LoginPageState extends State<LoginPage> {
   final _passwordController = TextEditingController();
   final AuthService _authService = AuthService();
 
-  bool _isSignIn = true;
+  bool _isSignUp = false;
   bool _isSubmitting = false;
   String? _message;
-
-  Future<void> _showEmailActionDialog({
-    required String title,
-    required String actionLabel,
-    required Future<void> Function(String email) onConfirm,
-  }) async {
-    final controller = TextEditingController(text: _emailController.text.trim());
-    bool isSubmitting = false;
-    String? dialogError;
-
-    await showDialog<void>(
-      context: context,
-      builder: (dialogContext) {
-        return StatefulBuilder(
-          builder: (context, setState) {
-            Future<void> submit() async {
-              final email = controller.text.trim();
-              if (email.isEmpty || !email.contains('@')) {
-                setState(() {
-                  dialogError = '请输入有效邮箱';
-                });
-                return;
-              }
-
-              setState(() {
-                isSubmitting = true;
-                dialogError = null;
-              });
-
-              try {
-                await onConfirm(email);
-                if (!dialogContext.mounted) return;
-                Navigator.of(dialogContext).pop();
-              } catch (error) {
-                setState(() {
-                  dialogError = AuthFeedback.fromError(error);
-                  isSubmitting = false;
-                });
-              }
-            }
-
-            return AlertDialog(
-              title: Text(title),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  TextField(
-                    controller: controller,
-                    keyboardType: TextInputType.emailAddress,
-                    decoration: const InputDecoration(
-                      labelText: '邮箱',
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                  if (dialogError != null) ...[
-                    const SizedBox(height: 12),
-                    Text(
-                      dialogError!,
-                      style: TextStyle(color: Colors.red[700], fontSize: 13),
-                    ),
-                  ],
-                ],
-              ),
-              actions: [
-                TextButton(
-                  onPressed: isSubmitting ? null : () => Navigator.of(dialogContext).pop(),
-                  child: const Text('取消'),
-                ),
-                FilledButton(
-                  onPressed: isSubmitting ? null : submit,
-                  child: isSubmitting
-                      ? const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : Text(actionLabel),
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
-
-    controller.dispose();
-  }
-
-  Future<void> _handlePasswordReset() async {
-    await _showEmailActionDialog(
-      title: '发送重置密码邮件',
-      actionLabel: '发送邮件',
-      onConfirm: (email) async {
-        await _authService.resetPasswordForEmail(email: email);
-        if (!mounted) return;
-        setState(() {
-          _message = AuthFeedback.resetPasswordSuccess();
-        });
-      },
-    );
-  }
-
-  Future<void> _handleResendConfirmation() async {
-    await _showEmailActionDialog(
-      title: '重发确认邮件',
-      actionLabel: '重新发送',
-      onConfirm: (email) async {
-        await _authService.resendSignupConfirmation(email: email);
-        if (!mounted) return;
-        setState(() {
-          _message = AuthFeedback.resendConfirmationSuccess();
-        });
-      },
-    );
-  }
 
   @override
   void dispose() {
     _emailController.dispose();
     _passwordController.dispose();
     super.dispose();
+  }
+
+  Future<void> _handleGoogleSignIn() async {
+    setState(() {
+      _isSubmitting = true;
+      _message = null;
+    });
+
+    try {
+      final success = await _authService.signInWithGoogle();
+      if (!mounted) return;
+
+      if (success && _authService.isSignedIn) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const HomePage()),
+        );
+      } else {
+        setState(() {
+          _message = 'Google 登录未成功，请重试';
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _message = AuthFeedback.fromError(e);
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSubmitting = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _handleAppleSignIn() async {
+    setState(() {
+      _isSubmitting = true;
+      _message = null;
+    });
+
+    try {
+      final success = await _authService.signInWithApple();
+      if (!mounted) return;
+
+      if (success && _authService.isSignedIn) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const HomePage()),
+        );
+      } else {
+        setState(() {
+          _message = 'Apple 登录未成功，请重试';
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _message = AuthFeedback.fromError(e);
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSubmitting = false;
+        });
+      }
+    }
   }
 
   Future<void> _submit() async {
@@ -154,7 +105,7 @@ class _LoginPageState extends State<LoginPage> {
     });
 
     try {
-      if (_isSignIn) {
+      if (!_isSignUp) {
         await _authService.signIn(
           email: _emailController.text.trim(),
           password: _passwordController.text,
@@ -204,91 +155,78 @@ class _LoginPageState extends State<LoginPage> {
     return Scaffold(
       backgroundColor: const Color(0xFFF3F7F2),
       body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 420),
-              child: Card(
-                elevation: 6,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-                child: Padding(
-                  padding: const EdgeInsets.all(24),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final maxWidth = constraints.maxWidth > 420 ? 420.0 : constraints.maxWidth;
+            return SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 32),
+              child: Center(
+                child: SizedBox(
+                  width: maxWidth,
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      Text(
-                        '配料侦探',
-                        style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                              fontWeight: FontWeight.bold,
-                              color: Colors.green[800],
-                            ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        _isSignIn ? '登录后才能使用识别与分析功能' : '创建账号后开始使用',
-                        style: TextStyle(color: Colors.grey[700]),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        _isSignIn
-                            ? '如果你刚注册过但登录失败，先检查邮箱是否已经完成确认。'
-                            : '部分项目会要求先点确认邮件中的链接；短时间频繁注册也可能触发发送限流。',
-                        style: TextStyle(color: Colors.grey[600], fontSize: 13),
-                      ),
-                      if (!isConfigured) ...[
-                        const SizedBox(height: 16),
-                        const Text(
-                          '当前缺少移动端 Supabase 或后端地址配置，请补充 assets/.env 后再试。',
-                          style: TextStyle(color: Colors.red),
-                        ),
-                      ],
-                      const SizedBox(height: 24),
+                      const SizedBox(height: 40),
                       Row(
                         children: [
-                          Expanded(
-                            child: FilledButton.tonal(
-                              onPressed: () {
-                                setState(() {
-                                  _isSignIn = true;
-                                  _message = null;
-                                });
-                              },
-                              style: FilledButton.styleFrom(
-                                backgroundColor: _isSignIn ? Colors.green[100] : Colors.grey[100],
-                              ),
-                              child: const Text('登录'),
-                            ),
-                          ),
+                          Icon(Icons.restaurant_menu, size: 32, color: Colors.green[800]),
                           const SizedBox(width: 12),
-                          Expanded(
-                            child: FilledButton.tonal(
-                              onPressed: () {
-                                setState(() {
-                                  _isSignIn = false;
-                                  _message = null;
-                                });
-                              },
-                              style: FilledButton.styleFrom(
-                                backgroundColor: !_isSignIn ? Colors.green[100] : Colors.grey[100],
-                              ),
-                              child: const Text('注册'),
-                            ),
+                          Text(
+                            '配料侦探',
+                            style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.green[800],
+                                ),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 20),
+                      const SizedBox(height: 12),
+                      Text(
+                        _isSignUp ? '创建账号后开始使用' : '登录后才能使用识别与分析功能',
+                        style: TextStyle(color: Colors.grey[700], fontSize: 16),
+                      ),
+                      const SizedBox(height: 32),
+                      _SocialButton(
+                        icon: SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CustomPaint(painter: _GoogleLogoPainter()),
+                        ),
+                        label: '使用 Google 账号登录',
+                        onPressed: !isConfigured || _isSubmitting ? null : _handleGoogleSignIn,
+                      ),
+                      const SizedBox(height: 12),
+                      _SocialButton(
+                        icon: const Icon(Icons.apple, size: 20),
+                        label: '使用 Apple 账号登录',
+                        onPressed: !isConfigured || _isSubmitting ? null : _handleAppleSignIn,
+                      ),
+                      const SizedBox(height: 24),
+                      Row(
+                        children: [
+                          Expanded(child: Divider(color: Colors.grey[300])),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 12),
+                            child: Text('或使用邮箱登录', style: TextStyle(color: Colors.grey[500], fontSize: 12)),
+                          ),
+                          Expanded(child: Divider(color: Colors.grey[300])),
+                        ],
+                      ),
+                      const SizedBox(height: 24),
                       Form(
                         key: _formKey,
                         child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
                             TextFormField(
                               controller: _emailController,
                               keyboardType: TextInputType.emailAddress,
-                              decoration: const InputDecoration(
+                              decoration: InputDecoration(
                                 labelText: '邮箱',
-                                border: OutlineInputBorder(),
+                                hintText: 'name@example.com',
+                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                                filled: true,
+                                fillColor: Colors.white,
                               ),
                               validator: (value) {
                                 if (value == null || value.trim().isEmpty) {
@@ -304,9 +242,12 @@ class _LoginPageState extends State<LoginPage> {
                             TextFormField(
                               controller: _passwordController,
                               obscureText: true,
-                              decoration: const InputDecoration(
+                              decoration: InputDecoration(
                                 labelText: '密码',
-                                border: OutlineInputBorder(),
+                                hintText: '至少 6 位',
+                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                                filled: true,
+                                fillColor: Colors.white,
                               ),
                               validator: (value) {
                                 if (value == null || value.isEmpty) {
@@ -320,63 +261,174 @@ class _LoginPageState extends State<LoginPage> {
                             ),
                             if (_message != null) ...[
                               const SizedBox(height: 16),
-                              Text(
-                                _message!,
-                                style: TextStyle(
-                                  color: _message!.contains('成功') ? Colors.green[700] : Colors.red[700],
+                              Container(
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: _message!.contains('成功') ? Colors.green[50] : Colors.red[50],
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(
+                                    color: _message!.contains('成功') ? Colors.green[200]! : Colors.red[200]!,
+                                  ),
+                                ),
+                                child: Text(
+                                  _message!,
+                                  style: TextStyle(
+                                    color: _message!.contains('成功') ? Colors.green[700] : Colors.red[700],
+                                    fontSize: 13,
+                                  ),
                                 ),
                               ),
                             ],
                             const SizedBox(height: 24),
-                            SizedBox(
-                              width: double.infinity,
-                              child: ElevatedButton(
-                                onPressed: !isConfigured || _isSubmitting ? null : _submit,
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.green[700],
-                                  foregroundColor: Colors.white,
-                                  padding: const EdgeInsets.symmetric(vertical: 16),
+                            FilledButton(
+                              onPressed: !isConfigured || _isSubmitting ? null : _submit,
+                              style: FilledButton.styleFrom(
+                                backgroundColor: _isSignUp ? Colors.green[600] : Colors.green[700],
+                                padding: const EdgeInsets.symmetric(vertical: 16),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              ),
+                              child: _isSubmitting
+                                  ? const SizedBox(
+                                      height: 18,
+                                      width: 18,
+                                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                                    )
+                                  : Text(
+                                      _isSignUp ? '创建账号' : '登录并进入应用',
+                                      style: const TextStyle(fontSize: 16),
+                                    ),
+                            ),
+                            const SizedBox(height: 16),
+                            Center(
+                              child: TextButton(
+                                onPressed: _isSubmitting ? null : () {
+                                  setState(() {
+                                    _isSignUp = !_isSignUp;
+                                    _message = null;
+                                  });
+                                },
+                                child: Text(
+                                  _isSignUp ? '已有账号？去登录' : '没有账号？去注册',
+                                  style: TextStyle(color: Colors.green[700]),
                                 ),
-                                child: _isSubmitting
-                                    ? const SizedBox(
-                                        height: 18,
-                                        width: 18,
-                                        child: CircularProgressIndicator(strokeWidth: 2),
-                                      )
-                                    : Text(_isSignIn ? '登录并进入应用' : '创建账号'),
                               ),
                             ),
-                            const SizedBox(height: 12),
-                            SizedBox(
-                              width: double.infinity,
-                              child: Wrap(
-                                spacing: 8,
-                                runSpacing: 8,
-                                alignment: WrapAlignment.end,
-                                children: [
-                                if (_isSignIn)
-                                  TextButton(
-                                    onPressed: _isSubmitting ? null : _handlePasswordReset,
-                                    child: const Text('忘记密码'),
-                                  ),
+                            const SizedBox(height: 16),
+                            Text(
+                              _isSignUp ? '注册即表示你已阅读并同意' : '继续登录即表示你已阅读并同意',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(color: Colors.grey[500], fontSize: 12),
+                            ),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
                                 TextButton(
-                                  onPressed: _isSubmitting ? null : _handleResendConfirmation,
-                                  child: const Text('重发确认邮件'),
+                                  onPressed: () {},
+                                  child: const Text('《用户协议》', style: TextStyle(fontSize: 12)),
+                                ),
+                                const Text('与', style: TextStyle(color: Colors.grey, fontSize: 12)),
+                                TextButton(
+                                  onPressed: () {},
+                                  child: const Text('《隐私政策》', style: TextStyle(fontSize: 12)),
                                 ),
                               ],
                             ),
-                          ),
                           ],
                         ),
                       ),
+                      const SizedBox(height: 32),
                     ],
                   ),
                 ),
               ),
-            ),
-          ),
+            );
+          },
         ),
       ),
     );
   }
+}
+
+class _SocialButton extends StatelessWidget {
+  final Widget icon;
+  final String label;
+  final VoidCallback? onPressed;
+
+  const _SocialButton({
+    required this.icon,
+    required this.label,
+    required this.onPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return OutlinedButton(
+      onPressed: onPressed,
+      style: OutlinedButton.styleFrom(
+        padding: const EdgeInsets.symmetric(vertical: 14),
+        side: BorderSide(color: Colors.grey[300]!),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          icon,
+          const SizedBox(width: 12),
+          Text(label),
+        ],
+      ),
+    );
+  }
+}
+
+class _GoogleLogoPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final path = Path();
+
+    final bluePaint = Paint()..color = const Color(0xFF4285F4);
+    final greenPaint = Paint()..color = const Color(0xFF34A853);
+    final yellowPaint = Paint()..color = const Color(0xFFFBBC05);
+    final redPaint = Paint()..color = const Color(0xFFEA4335);
+
+    final centerX = size.width / 2;
+    final centerY = size.height / 2;
+    final radius = size.width / 2;
+
+    canvas.save();
+    canvas.translate(centerX, centerY);
+
+    path.reset();
+    path.moveTo(0, -radius);
+    path.arcToPoint(Offset(radius, 0), radius: Radius.circular(radius));
+    path.lineTo(0, 0);
+    path.close();
+    canvas.drawPath(path, bluePaint);
+
+    path.reset();
+    path.moveTo(radius, 0);
+    path.arcToPoint(Offset(0, radius), radius: Radius.circular(radius));
+    path.lineTo(0, 0);
+    path.close();
+    canvas.drawPath(path, greenPaint);
+
+    path.reset();
+    path.moveTo(0, radius);
+    path.arcToPoint(Offset(-radius, 0), radius: Radius.circular(radius));
+    path.lineTo(0, 0);
+    path.close();
+    canvas.drawPath(path, yellowPaint);
+
+    path.reset();
+    path.moveTo(-radius, 0);
+    path.arcToPoint(Offset(0, -radius), radius: Radius.circular(radius));
+    path.lineTo(0, 0);
+    path.close();
+    canvas.drawPath(path, redPaint);
+
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

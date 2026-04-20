@@ -3,6 +3,9 @@ export default defineNuxtConfig({
   devtools: { enabled: true },
   css: ['~/assets/css/main.css'],
   modules: ['@nuxt/ui', '@nuxtjs/supabase'],
+  ui: {
+    fonts: false
+  },
   app: {
     head: {
       meta: [
@@ -49,6 +52,10 @@ export default defineNuxtConfig({
   supabase: {
     redirect: false,
     url: process.env.NUXT_PUBLIC_SUPABASE_URL,
-    key: process.env.NUXT_PUBLIC_SUPABASE_ANON_KEY
+    key: process.env.NUXT_PUBLIC_SUPABASE_ANON_KEY,
+    cookieOptions: {
+      sameSite: 'lax',
+      secure: false
+    }
   }
 })

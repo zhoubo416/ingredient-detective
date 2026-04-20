@@ -66,6 +66,14 @@ export function useAuthFeedback() {
     return '确认邮件已重新发送。请检查收件箱和垃圾邮件文件夹。'
   }
 
+  function getMagicLinkSentMessage() {
+    return '登录链接已发送到你的邮箱。请检查收件箱，点击邮件中的链接即可登录。'
+  }
+
+  function getOtpSentMessage() {
+    return '验证码已发送到你的邮箱。请查收并输入 6 位验证码完成登录。'
+  }
+
   function getPasswordUpdatedSuccessMessage() {
     return '密码已更新，请使用新密码登录。'
   }
@@ -74,6 +82,8 @@ export function useAuthFeedback() {
     getSignUpSuccessMessage,
     getResetPasswordSuccessMessage,
     getResendConfirmationSuccessMessage,
+    getMagicLinkSentMessage,
+    getOtpSentMessage,
     getPasswordUpdatedSuccessMessage,
     mapAuthError
   }

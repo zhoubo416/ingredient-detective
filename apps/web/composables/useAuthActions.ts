@@ -36,6 +36,65 @@ export function useAuthActions() {
     return data
   }
 
+  async function sendMagicLink(email: string) {
+    const { error, data } = await client.auth.signInWithOtp({
+      email,
+      options: {
+        emailRedirectTo: buildRedirectUrl('/auth/confirm')
+      }
+    })
+
+    if (error) {
+      throw error
+    }
+
+    return data
+  }
+
+  async function verifyOtp(email: string, token: string) {
+    const { error, data } = await client.auth.verifyOtp({
+      email,
+      token,
+      type: 'email'
+    })
+
+    if (error) {
+      throw error
+    }
+
+    return data
+  }
+
+  async function signInWithGoogle() {
+    const { error, data } = await client.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: buildRedirectUrl('/auth/confirm')
+      }
+    })
+
+    if (error) {
+      throw error
+    }
+
+    return data
+  }
+
+  async function signInWithApple() {
+    const { error, data } = await client.auth.signInWithOAuth({
+      provider: 'apple',
+      options: {
+        redirectTo: buildRedirectUrl('/auth/confirm')
+      }
+    })
+
+    if (error) {
+      throw error
+    }
+
+    return data
+  }
+
   async function resendSignupConfirmation(email: string) {
     const { error, data } = await client.auth.resend({
       type: 'signup',
@@ -83,6 +142,10 @@ export function useAuthActions() {
   return {
     signIn,
     signUp,
+    sendMagicLink,
+    verifyOtp,
+    signInWithGoogle,
+    signInWithApple,
     resendSignupConfirmation,
     requestPasswordReset,
     updatePassword,

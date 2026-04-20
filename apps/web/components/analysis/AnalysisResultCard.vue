@@ -21,7 +21,7 @@ const renderedMarkdown = computed(() => {
 <template>
   <div class="space-y-3">
     <!-- Empty State -->
-    <div v-if="isEmpty" class="rounded-2xl border border-dashed border-slate-300 bg-slate-50/50 p-8 text-center">
+    <div v-if="isEmpty" class="rounded-2xl border border-dashed border-slate-300 bg-slate-50/50 p-8 text-center h-full">
       <UIcon name="i-lucide-clipboard-list" class="mx-auto text-4xl text-slate-400" />
       <p class="mt-3 text-sm text-slate-500">暂无分析结果</p>
       <p class="mt-1 text-xs text-slate-400">上传食品配料开始分析</p>
