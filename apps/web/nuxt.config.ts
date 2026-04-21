@@ -8,18 +8,27 @@ export default defineNuxtConfig({
   },
   app: {
     head: {
+      title: '配料侦探 - AI智能分析食品成分安全与营养价值',
+      titleTemplate: '%s | 配料侦探',
+      htmlAttrs: {
+        lang: 'zh-CN'
+      },
       meta: [
         { charset: 'utf-8' },
         { name: 'viewport', content: 'width=device-width, initial-scale=1' },
         { name: 'description', content: '配料侦探 - AI智能分析食品成分安全与营养价值。通过拍照识别配料表，快速获得专业的健康评分和个性化建议。关注食品安全，守护全家健康。' },
-        { name: 'keywords', content: '食品成分分析,配料表,营养成分,食品安全,AI识别,健康评分,添加剂,食品分析工具' },
+        { name: 'keywords', content: '食品成分分析,配料表,营养成分,食品安全,AI识别,健康评分,添加剂,食品分析工具,配料识别,健康饮食,食品添加剂查询' },
         { name: 'author', content: '配料侦探' },
         { name: 'theme-color', content: '#10b981' },
+        { name: 'robots', content: 'index, follow' },
         { property: 'og:type', content: 'website' },
-        { property: 'og:title', content: '配料侦探 - 智能食品成分分析' },
-        { property: 'og:description', content: '拍照识别食品包装成分，AI智能分析营养价值和食品安全' },
+        { property: 'og:site_name', content: '配料侦探' },
+        { property: 'og:title', content: '配料侦探 - AI智能分析食品成分安全与营养价值' },
+        { property: 'og:description', content: '拍照识别食品包装成分，AI智能分析营养价值和食品安全，获取个性化健康建议。' },
+        { property: 'og:locale', content: 'zh_CN' },
         { name: 'twitter:card', content: 'summary_large_image' },
-        { name: 'twitter:title', content: '配料侦探 - 智能食品成分分析' }
+        { name: 'twitter:title', content: '配料侦探 - AI智能分析食品成分安全与营养价值' },
+        { name: 'twitter:description', content: '拍照识别食品包装成分，AI智能分析营养价值和食品安全，获取个性化健康建议。' }
       ],
       link: [
         { rel: 'icon', type: 'image/png', sizes: '32x32', href: '/favicon-32x32.png' },

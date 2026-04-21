@@ -4,7 +4,10 @@ definePageMeta({
 })
 
 useSeoMeta({
-  title: '登录 · 配料侦探'
+  title: '登录',
+  description: '登录配料侦探，使用 Google、Apple 或邮箱账号登录，即可享受 AI 智能食品成分分析服务。',
+  ogTitle: '登录 · 配料侦探',
+  ogDescription: '登录配料侦探，使用 Google、Apple 或邮箱账号登录，即可享受 AI 智能食品成分分析服务。'
 })
 </script>
 

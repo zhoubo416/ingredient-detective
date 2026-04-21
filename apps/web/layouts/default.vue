@@ -67,7 +67,7 @@ async function handleSignOut() {
           <NuxtLink class="apple-link" to="/privacy-policy">隐私政策</NuxtLink>
           <NuxtLink class="apple-link" to="/terms">用户协议</NuxtLink>
           <NuxtLink class="apple-link" to="/compliance">备案与合规说明</NuxtLink>
-          <span class="text-slate-400">备案准备中，备案完成后将展示 ICP/公安备案信息</span>
+          <a class="apple-link" href="https://beian.miit.gov.cn/" target="_blank" rel="noopener">鲁ICP备2026019011号-1</a>
         </div>
       </UContainer>
     </footer>

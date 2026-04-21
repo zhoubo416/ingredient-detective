@@ -6,7 +6,10 @@ definePageMeta({
 })
 
 useSeoMeta({
-  title: '历史记录 · 配料侦探'
+  title: '历史记录',
+  description: '检索和回看你的食品配料分析历史，支持食品名、配料关键词搜索，追踪健康评分变化。',
+  ogTitle: '历史记录 · 配料侦探',
+  ogDescription: '检索和回看你的食品配料分析历史，支持食品名、配料关键词搜索，追踪健康评分变化。'
 })
 
 const items = ref<AnalysisHistoryItem[]>([])

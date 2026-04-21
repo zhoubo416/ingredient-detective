@@ -3,14 +3,14 @@ import 'package:http/http.dart' as http;
 import 'package:flutter_html/flutter_html.dart';
 import '../config/api_config.dart';
 
-class PrivacyPolicyPage extends StatefulWidget {
-  const PrivacyPolicyPage({super.key});
+class TermsOfServicePage extends StatefulWidget {
+  const TermsOfServicePage({super.key});
 
   @override
-  State<PrivacyPolicyPage> createState() => _PrivacyPolicyPageState();
+  State<TermsOfServicePage> createState() => _TermsOfServicePageState();
 }
 
-class _PrivacyPolicyPageState extends State<PrivacyPolicyPage> {
+class _TermsOfServicePageState extends State<TermsOfServicePage> {
   String _htmlContent = '';
   bool _isLoading = true;
   String _errorMessage = '';
@@ -18,12 +18,12 @@ class _PrivacyPolicyPageState extends State<PrivacyPolicyPage> {
   @override
   void initState() {
     super.initState();
-    _loadPrivacyPolicy();
+    _loadTermsOfService();
   }
 
-  Future<void> _loadPrivacyPolicy() async {
+  Future<void> _loadTermsOfService() async {
     try {
-      final response = await http.get(Uri.parse('${ApiConfig.backendApiUrl}/api/privacy-policy'));
+      final response = await http.get(Uri.parse('${ApiConfig.backendApiUrl}/api/terms'));
 
       if (response.statusCode == 200) {
         setState(() {
@@ -32,13 +32,13 @@ class _PrivacyPolicyPageState extends State<PrivacyPolicyPage> {
         });
       } else {
         setState(() {
-          _errorMessage = '无法加载隐私政策内容，状态码: ${response.statusCode}';
+          _errorMessage = '无法加载用户协议内容，状态码: ${response.statusCode}';
           _isLoading = false;
         });
       }
     } catch (e) {
       setState(() {
-        _errorMessage = '加载隐私政策时出错: $e';
+        _errorMessage = '加载用户协议时出错: $e';
         _isLoading = false;
       });
     }
@@ -48,7 +48,7 @@ class _PrivacyPolicyPageState extends State<PrivacyPolicyPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('隐私政策'),
+        title: const Text('用户协议'),
         backgroundColor: Colors.green,
         foregroundColor: Colors.white,
       ),
@@ -64,7 +64,7 @@ class _PrivacyPolicyPageState extends State<PrivacyPolicyPage> {
           children: [
             CircularProgressIndicator(),
             SizedBox(height: 16),
-            Text('正在加载隐私政策...'),
+            Text('正在加载用户协议...'),
           ],
         ),
       );
@@ -89,7 +89,7 @@ class _PrivacyPolicyPageState extends State<PrivacyPolicyPage> {
                   _isLoading = true;
                   _errorMessage = '';
                 });
-                _loadPrivacyPolicy();
+                _loadTermsOfService();
               },
               child: const Text('重试'),
             ),

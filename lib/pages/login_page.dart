@@ -3,6 +3,8 @@ import '../config/api_config.dart';
 import '../models/auth_feedback.dart';
 import '../services/auth_service.dart';
 import 'home_page.dart';
+import 'privacy_policy_page.dart';
+import 'terms_of_service_page.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -323,12 +325,22 @@ class _LoginPageState extends State<LoginPage> {
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
                                 TextButton(
-                                  onPressed: () {},
+                                  onPressed: () {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(builder: (context) => const TermsOfServicePage()),
+                                    );
+                                  },
                                   child: const Text('《用户协议》', style: TextStyle(fontSize: 12)),
                                 ),
                                 const Text('与', style: TextStyle(color: Colors.grey, fontSize: 12)),
                                 TextButton(
-                                  onPressed: () {},
+                                  onPressed: () {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(builder: (context) => const PrivacyPolicyPage()),
+                                    );
+                                  },
                                   child: const Text('《隐私政策》', style: TextStyle(fontSize: 12)),
                                 ),
                               ],

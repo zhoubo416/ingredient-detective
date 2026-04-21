@@ -7,7 +7,10 @@ definePageMeta({
 })
 
 useSeoMeta({
-  title: '分析台 · 配料侦探'
+  title: '分析台',
+  description: '上传食品包装图片或配料文本，AI 自动完成识别与分析，获得健康评分和个性化建议。',
+  ogTitle: '分析台 · 配料侦探',
+  ogDescription: '上传食品包装图片或配料文本，AI 自动完成识别与分析，获得健康评分和个性化建议。'
 })
 
 const user = useSupabaseUser()
