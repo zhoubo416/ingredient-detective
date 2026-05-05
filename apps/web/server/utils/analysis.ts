@@ -318,7 +318,7 @@ function resolveLlmConfig() {
     return {
       provider: 'deepseek',
       apiKey: config.deepseekApiKey,
-      model: configuredModel || 'deepseek-chat',
+      model: configuredModel || 'deepseek-v4-flash',
       url: DEEPSEEK_BASE_URL
     } satisfies LlmConfig
   }

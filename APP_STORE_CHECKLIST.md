@@ -6,7 +6,7 @@
 - [x] **应用信息配置**
   - [x] 应用名称：配料侦探
   - [x] 版本号：1.0.0+1
-  - [x] Bundle Identifier：com.example.flutterApplication1
+  - [x] Bundle Identifier：com.i9d8.top
 
 - [x] **隐私政策文档**
   - [x] 创建 PRIVACY_POLICY.md

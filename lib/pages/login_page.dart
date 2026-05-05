@@ -188,28 +188,12 @@ class _LoginPageState extends State<LoginPage> {
                         style: TextStyle(color: Colors.grey[700], fontSize: 16),
                       ),
                       const SizedBox(height: 32),
-                      _SocialButton(
-                        icon: SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CustomPaint(painter: _GoogleLogoPainter()),
-                        ),
-                        label: '使用 Google 账号登录',
-                        onPressed: !isConfigured || _isSubmitting ? null : _handleGoogleSignIn,
-                      ),
-                      const SizedBox(height: 12),
-                      _SocialButton(
-                        icon: const Icon(Icons.apple, size: 20),
-                        label: '使用 Apple 账号登录',
-                        onPressed: !isConfigured || _isSubmitting ? null : _handleAppleSignIn,
-                      ),
-                      const SizedBox(height: 24),
                       Row(
                         children: [
                           Expanded(child: Divider(color: Colors.grey[300])),
                           Padding(
                             padding: const EdgeInsets.symmetric(horizontal: 12),
-                            child: Text('或使用邮箱登录', style: TextStyle(color: Colors.grey[500], fontSize: 12)),
+                            child: Text('使用邮箱登录', style: TextStyle(color: Colors.grey[500], fontSize: 12)),
                           ),
                           Expanded(child: Divider(color: Colors.grey[300])),
                         ],

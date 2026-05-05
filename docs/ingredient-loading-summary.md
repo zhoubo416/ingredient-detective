@@ -167,7 +167,7 @@ response_format: 'json'
      -H "Authorization: Bearer $DEEPSEEK_API_KEY" \
      -H "Content-Type: application/json" \
      -d '{
-       "model": "deepseek-chat",
+       "model": "deepseek-v4-flash",
        "response_format": { "type": "json_object" },
        "messages": [{"role": "user", "content": "返回JSON: {\"test\": 1}"}]
      }'
@@ -181,7 +181,7 @@ response_format: 'json'
    ```
 
 3. **检查 LLM 版本**
-   - DeepSeek: 应使用 `deepseek-chat` 或更新版本
+   - DeepSeek: 应使用 `deepseek-v4-flash` 或更新版本
    - Qwen: 应使用 `qwen-plus` 或 `qwen-turbo`
 
 ### 如果轮询仍然一直等待

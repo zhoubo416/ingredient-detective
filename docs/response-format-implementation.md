@@ -56,7 +56,7 @@ LLM 现在被强制使用 JSON 模式，返回 **有效的 JSON** 而非自由�
 - 不会导致代码崩溃
 
 不支持的模型清单（需要手动验证）：
-- DeepSeek 较旧版本（< deepseek-chat）
+- DeepSeek 较旧版本（< deepseek-v4-flash）
 - Qwen 较旧版本（< qwen-plus）
 - 若使用其他 LLM 提供商，可能需要调整 buildRequestBody
 
@@ -113,7 +113,7 @@ LLM JSON 模式的工作原理：
 如果启用 `response_format` 后仍然有 JSON 错误，说明：
 
 1. **模型版本过旧**
-   - 升级到最新的 deepseek-chat 或 qwen-plus
+   - 升级到最新的 deepseek-v4-flash 或 qwen-plus
 
 2. **LLM API 不支持**（某些代理或本地部署）
    - 在 `buildRequestBody()` 中禁用 JSON 模式：`useJsonMode: false`
