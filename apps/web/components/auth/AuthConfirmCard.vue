@@ -21,7 +21,38 @@ function normalizeVerifyType(type: string) {
 onMounted(async () => {
   const tokenHash = typeof route.query.token_hash === 'string' ? route.query.token_hash : ''
   const rawType = typeof route.query.type === 'string' ? route.query.type : ''
+  const oauthCode = typeof route.query.code === 'string' ? route.query.code : ''
+  const oauthError = typeof route.query.error_description === 'string' ? route.query.error_description : ''
+  const hasHashSession = typeof window !== 'undefined' && window.location.hash.includes('access_token')
 
+  if (oauthError) {
+    errorMessage.value = oauthError
+    loading.value = false
+    return
+  }
+
+  // OAuth (Apple/Google) callback: client auto-detects ?code=... or #access_token=... during init,
+  // exchanges the code, saves the session. Just wait for it to finish, then redirect.
+  if (oauthCode || hasHashSession) {
+    const { data: { session }, error } = await client.auth.getSession()
+    if (error) {
+      errorMessage.value = error.message
+      loading.value = false
+      return
+    }
+
+    if (!session) {
+      errorMessage.value = '登录失败：未获得会话，请重试。'
+      loading.value = false
+      return
+    }
+
+    const redirect = typeof route.query.redirect === 'string' ? route.query.redirect : '/dashboard/history'
+    await navigateTo(redirect, { replace: true })
+    return
+  }
+
+  // Email verification link
   if (!tokenHash) {
     errorMessage.value = '确认链接缺少 token，请重新打开邮件中的完整链接。'
     loading.value = false

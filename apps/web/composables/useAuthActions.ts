@@ -3,6 +3,9 @@ export function useAuthActions() {
   const config = useRuntimeConfig()
 
   function buildRedirectUrl(path: string) {
+    if (import.meta.client) {
+      return new URL(path, window.location.origin).toString()
+    }
     const base = config.public.marketingSiteUrl || 'http://localhost:3000'
     return new URL(path, base).toString()
   }

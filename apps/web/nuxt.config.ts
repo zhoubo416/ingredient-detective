@@ -64,7 +64,7 @@ export default defineNuxtConfig({
     key: process.env.NUXT_PUBLIC_SUPABASE_ANON_KEY,
     cookieOptions: {
       sameSite: 'lax',
-      secure: false
+      secure: process.env.NODE_ENV === 'production'
     }
   }
 })

@@ -93,9 +93,6 @@ useHead({
               <UButton to="/login" color="primary" size="lg" trailing-icon="i-lucide-arrow-right">
                 立即体验产品
               </UButton>
-              <UButton to="/dashboard" color="success" size="lg">
-                进入分析台
-              </UButton>
             </div>
           </div>
         </div>

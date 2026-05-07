@@ -39,14 +39,14 @@ async function handleSubmit() {
       const data = await signUp(email.value, password.value)
 
       if (data.session) {
-        window.location.href = '/dashboard'
+        window.location.href = '/dashboard/history'
         return
       }
 
       successMessage.value = getSignUpSuccessMessage(Boolean(data.session))
     } else {
       await signIn(email.value, password.value)
-      const target = (route.query.redirect as string) || '/dashboard'
+      const target = (route.query.redirect as string) || '/dashboard/history'
       window.location.href = target
       return
     }

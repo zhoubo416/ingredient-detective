@@ -31,7 +31,7 @@ async function handleSignOut() {
 
         <nav class="flex items-center gap-1 rounded-full border border-black/10 bg-white/85 p-1">
           <UButton to="/" variant="ghost" color="neutral" class="nav-pill">产品首页</UButton>
-          <UButton v-if="user" to="/dashboard" variant="ghost" color="neutral" class="nav-pill">分析台</UButton>
+          <UButton to="/download" variant="ghost" color="neutral" class="nav-pill">下载 App</UButton>
           <UButton v-if="user" to="/dashboard/history" variant="ghost" color="neutral" class="nav-pill">历史记录</UButton>
           <UButton v-if="!user" to="/login" color="primary" class="rounded-full px-4">登录</UButton>
           <UButton
