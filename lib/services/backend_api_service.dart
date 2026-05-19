@@ -151,6 +151,40 @@ class BackendApiService {
     );
   }
 
+  /// OCR 识别图片中的配料文字，返回原始文本供用户编辑确认
+  Future<OcrResult> ocrImage(XFile image) async {
+    if (!ApiConfig.isBackendConfigured) {
+      throw Exception('BACKEND_API_URL 未配置');
+    }
+
+    final request = http.MultipartRequest('POST', _buildUri('/api/ocr'));
+
+    request.headers.addAll(await _authorizedHeaders());
+
+    request.files.add(
+      http.MultipartFile.fromBytes(
+        'image',
+        await image.readAsBytes(),
+        filename: image.name,
+      ),
+    );
+
+    final streamedResponse = await request.send();
+    final response = await http.Response.fromStream(streamedResponse);
+    final payload = jsonDecode(response.body) as Map<String, dynamic>;
+
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      if (response.statusCode == 401) {
+        throw UnauthorizedException(
+          payload['statusMessage']?.toString() ?? '登录已失效，请重新登录',
+        );
+      }
+      throw Exception(payload['statusMessage']?.toString() ?? 'OCR 识别失败');
+    }
+
+    return OcrResult.fromMap(payload);
+  }
+
   Future<FoodAnalysisResult> analyzeIngredientsText(
     String ingredientsText, {
     String? productName,
@@ -366,6 +400,34 @@ class BackendApiService {
     result['analysisId'] = result['analysisId'] ?? payload['id'] ?? analysisId;
     return FoodAnalysisResult.fromMap(result);
   }
+}
+
+/// OCR 识别结果
+class OcrResult {
+  final String rawText;
+  final List<String> ingredientLines;
+  final int ingredientCount;
+
+  OcrResult({
+    required this.rawText,
+    required this.ingredientLines,
+    required this.ingredientCount,
+  });
+
+  factory OcrResult.fromMap(Map<String, dynamic> map) {
+    return OcrResult(
+      rawText: map['rawText']?.toString() ?? '',
+      ingredientLines: (map['ingredientLines'] as List<dynamic>?)
+              ?.map((e) => e.toString())
+              .toList() ??
+          [],
+      ingredientCount: (map['ingredientCount'] as num?)?.toInt() ?? 0,
+    );
+  }
+
+  /// 默认展示文本：优先用解析出的配料行，否则用原始 OCR 文本
+  String get displayText =>
+      ingredientLines.isNotEmpty ? ingredientLines.join('，') : rawText;
 }
 
 /// 未授权异常 - 用于 401 错误

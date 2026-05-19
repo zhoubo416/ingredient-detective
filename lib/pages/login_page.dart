@@ -30,6 +30,18 @@ class _LoginPageState extends State<LoginPage> {
     super.dispose();
   }
 
+  void _navigateAfterLogin() {
+    if (Navigator.canPop(context)) {
+      Navigator.pop(context, true);
+    } else {
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(builder: (_) => const HomePage()),
+        (_) => false,
+      );
+    }
+  }
+
   Future<void> _handleGoogleSignIn() async {
     setState(() {
       _isSubmitting = true;
@@ -41,10 +53,7 @@ class _LoginPageState extends State<LoginPage> {
       if (!mounted) return;
 
       if (success && _authService.isSignedIn) {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const HomePage()),
-        );
+        _navigateAfterLogin();
       } else {
         setState(() {
           _message = 'Google 登录未成功，请重试';
@@ -74,10 +83,7 @@ class _LoginPageState extends State<LoginPage> {
       if (!mounted) return;
 
       if (success && _authService.isSignedIn) {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const HomePage()),
-        );
+        _navigateAfterLogin();
       } else {
         setState(() {
           _message = 'Apple 登录未成功，请重试';
@@ -114,10 +120,7 @@ class _LoginPageState extends State<LoginPage> {
         );
 
         if (!mounted) return;
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const HomePage()),
-        );
+        _navigateAfterLogin();
       } else {
         final response = await _authService.signUp(
           email: _emailController.text.trim(),
@@ -131,10 +134,7 @@ class _LoginPageState extends State<LoginPage> {
         });
 
         if (response.session != null && mounted) {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (context) => const HomePage()),
-          );
+          _navigateAfterLogin();
         }
       }
     } catch (e) {

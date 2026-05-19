@@ -1,15 +1,22 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart'
     show TargetPlatform, defaultTargetPlatform, kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:image_cropper/image_cropper.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:loading_animation_widget/loading_animation_widget.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../services/auth_service.dart';
 import '../services/backend_api_service.dart';
 import '../services/subscription_manager.dart';
 import '../services/user_health_profile_service.dart';
 import '../widgets/permission_guide_dialog.dart';
 import 'analysis_result_page.dart';
 import 'camera_capture_page.dart';
+import 'login_page.dart';
+import 'ocr_review_page.dart';
 import 'subscription_page.dart';
 
 class CameraPage extends StatefulWidget {
@@ -28,23 +35,30 @@ class _CameraPageState extends State<CameraPage> {
 
   bool _isLoading = false;
   String? _lastFailedImageName;
+  StreamSubscription<AuthState>? _authSubscription;
 
   @override
   void initState() {
     super.initState();
     _subscriptionManager.addListener(_handleSubscriptionChanged);
     _warmUpSubscriptionStatus();
+    _authSubscription = Supabase.instance.client.auth.onAuthStateChange.listen((_) {
+      if (mounted) setState(() {});
+    });
   }
 
   @override
   void dispose() {
+    _authSubscription?.cancel();
     _subscriptionManager.removeListener(_handleSubscriptionChanged);
     super.dispose();
   }
 
   void _handleSubscriptionChanged() {
     if (!mounted) return;
-    setState(() {});
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) setState(() {});
+    });
   }
 
   Future<void> _warmUpSubscriptionStatus() async {
@@ -55,27 +69,71 @@ class _CameraPageState extends State<CameraPage> {
     }
   }
 
-  Future<bool> _ensureProAccess() async {
-    setState(() {
-      _isLoading = true;
-    });
+  /// 确保用户已登录 → 再检查 Pro 权限
+  bool get _isSignedIn => AuthService().isSignedIn;
 
+  Future<void> _navigateToLogin() async {
+    final loggedIn = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(builder: (context) => const LoginPage()),
+    );
+    if (loggedIn == true && mounted) setState(() {});
+  }
+
+  Widget _buildLoginBanner() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF0FDF4),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFBBF7D0)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.person_outline, size: 18, color: Color(0xFF2F7D32)),
+          const SizedBox(width: 8),
+          const Expanded(
+            child: Text(
+              '登录后解锁拍照分析与历史记录',
+              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF166534)),
+            ),
+          ),
+          TextButton(
+            onPressed: _navigateToLogin,
+            style: TextButton.styleFrom(
+              backgroundColor: const Color(0xFF2F7D32),
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+            ),
+            child: const Text('登录/注册'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<bool> _ensureAuthAndProAccess() async {
+    final authService = AuthService();
+    if (!authService.isSignedIn) {
+      if (!mounted) return false;
+      final loggedIn = await Navigator.push<bool>(
+        context,
+        MaterialPageRoute(builder: (context) => const LoginPage()),
+      );
+      if (loggedIn != true || !mounted) return false;
+    }
+
+    // 登录后检查 Pro
+    setState(() => _isLoading = true);
     try {
       await _subscriptionManager.reloadSubscriptionStatus();
-
-      if (_subscriptionManager.isProUser) {
-        return true;
-      }
-    } catch (error) {
-      if (!mounted) return false;
-      _showErrorDialog('检查 Pro 会员状态失败: $error');
-      return false;
+      if (_subscriptionManager.isProUser) return true;
+    } catch (_) {
+      // 检查失败不阻塞，继续走试用逻辑
     } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
+      if (mounted) setState(() => _isLoading = false);
     }
 
     if (!mounted) return false;
@@ -115,7 +173,7 @@ class _CameraPageState extends State<CameraPage> {
   }
 
   Future<void> _pickImage(ImageSource source) async {
-    if (!await _ensureProAccess()) {
+    if (!await _ensureAuthAndProAccess()) {
       return;
     }
 
@@ -239,29 +297,65 @@ class _CameraPageState extends State<CameraPage> {
     }
   }
 
+  Future<XFile?> _cropImage(XFile image) async {
+    // Web 平台不支持裁剪，直接返回原图
+    if (kIsWeb) return image;
+
+    final croppedFile = await ImageCropper().cropImage(
+      sourcePath: image.path,
+      uiSettings: [
+        if (defaultTargetPlatform == TargetPlatform.android)
+          AndroidUiSettings(
+            toolbarTitle: '框选配料表区域',
+            toolbarColor: const Color(0xFF2F7D32),
+            toolbarWidgetColor: Colors.white,
+            lockAspectRatio: false,
+          ),
+        if (defaultTargetPlatform == TargetPlatform.iOS)
+          IOSUiSettings(
+            title: '框选配料表区域',
+            cancelButtonTitle: '取消',
+            doneButtonTitle: '确定',
+          ),
+      ],
+    );
+
+    if (croppedFile == null) return null;
+    return XFile(croppedFile.path);
+  }
+
   Future<void> _processImage(XFile image) async {
     try {
-      final healthProfile = await _userHealthProfileService.loadProfile();
-      final result = await _backendApiService.analyzeImage(
-        image,
-        userHealthProfile: healthProfile.isEmpty ? null : healthProfile.toMap(),
-      );
+      setState(() => _isLoading = true);
 
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('正在分析${result.foodName}...')));
+      // 第一步：裁剪区域选择（Web 跳过）
+      final cropped = await _cropImage(image);
+      if (cropped == null) {
+        if (mounted) setState(() => _isLoading = false);
+        return;
       }
 
+      // 第二步：OCR 识别
+      final ocrResult = await _backendApiService.ocrImage(cropped);
+      final healthProfile = await _userHealthProfileService.loadProfile();
+
       if (!mounted) return;
+      setState(() => _isLoading = false);
+
+      // 第二步：跳转编辑页，用户确认后再分析
       Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (context) => AnalysisResultPage(analysisResult: result),
+          builder: (context) => OcrReviewPage(
+            ocrResult: ocrResult,
+            userHealthProfile:
+                healthProfile.isEmpty ? null : healthProfile.toMap(),
+          ),
         ),
       );
     } catch (e) {
       if (!mounted) return;
+      setState(() => _isLoading = false);
       _lastFailedImageName = image.name;
 
       if (e.toString().contains(
@@ -278,7 +372,7 @@ class _CameraPageState extends State<CameraPage> {
         return;
       }
 
-      _showErrorDialog('分析失败: $e');
+      _showErrorDialog('OCR 识别失败: $e');
     }
   }
 
@@ -748,12 +842,6 @@ class _CameraPageState extends State<CameraPage> {
 
   Widget _buildActionsSection() {
     final isProUser = _subscriptionManager.isProUser;
-    final statusText =
-        _subscriptionManager.isLoading && !_subscriptionManager.isInitialized
-        ? '正在检查 Pro 权限'
-        : isProUser
-        ? 'Pro 已开通，拍照和文本分析已解锁'
-        : '当前账号未开通 Pro，分析入口已锁定';
 
     return Container(
       padding: const EdgeInsets.all(18),
@@ -772,65 +860,70 @@ class _CameraPageState extends State<CameraPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Container(
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: isProUser
-                  ? const Color(0xFFEAF8F1)
-                  : const Color(0xFFFFF4E5),
-              borderRadius: BorderRadius.circular(18),
-              border: Border.all(
+          // 已登录时显示 Pro 状态
+          if (_isSignedIn) ...[
+            Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
                 color: isProUser
-                    ? const Color(0xFFD6E5D8)
-                    : const Color(0xFFF3D7A6),
-              ),
-            ),
-            child: Row(
-              children: [
-                Icon(
-                  isProUser
-                      ? Icons.verified_rounded
-                      : Icons.lock_outline_rounded,
+                    ? const Color(0xFFEAF8F1)
+                    : const Color(0xFFFFF4E5),
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(
                   color: isProUser
-                      ? const Color(0xFF2F7D32)
-                      : const Color(0xFFB7791F),
+                      ? const Color(0xFFD6E5D8)
+                      : const Color(0xFFF3D7A6),
                 ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    statusText,
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: isProUser
-                          ? const Color(0xFF1F5A28)
-                          : const Color(0xFF8A5A16),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    isProUser
+                        ? Icons.verified_rounded
+                        : Icons.lock_outline_rounded,
+                    color: isProUser
+                        ? const Color(0xFF2F7D32)
+                        : const Color(0xFFB7791F),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      isProUser
+                          ? 'Pro 已开通，拍照和文本分析已解锁'
+                          : '当前账号未开通 Pro，分析入口已锁定',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: isProUser
+                            ? const Color(0xFF1F5A28)
+                            : const Color(0xFF8A5A16),
+                      ),
                     ),
                   ),
-                ),
-                if (!isProUser)
-                  TextButton(
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const SubscriptionPage(),
-                        ),
-                      );
-                    },
-                    child: const Text('升级'),
-                  ),
-              ],
+                  if (!isProUser)
+                    TextButton(
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const SubscriptionPage(),
+                          ),
+                        );
+                      },
+                      child: const Text('升级'),
+                    ),
+                ],
+              ),
             ),
-          ),
-          const SizedBox(height: 12),
+            const SizedBox(height: 12),
+          ],
           _buildActionButton(
             icon: Icons.camera_alt_rounded,
             title: '拍照分析',
             subtitle: '打开拍照预览页，直接对准配料表后拍摄',
             onTap: () => _pickImage(ImageSource.camera),
             filled: false,
-            badge: isProUser ? '推荐' : 'Pro',
+            badge: _isSignedIn && isProUser ? '推荐' : null,
           ),
           const SizedBox(height: 12),
           _buildActionButton(
@@ -839,12 +932,11 @@ class _CameraPageState extends State<CameraPage> {
             subtitle: '上传已有包装图片，继续完成识别和分析',
             onTap: () => _pickImage(ImageSource.gallery),
             filled: false,
-            badge: isProUser ? null : 'Pro',
           ),
           const SizedBox(height: 12),
           OutlinedButton.icon(
             onPressed: () async {
-              if (!await _ensureProAccess()) {
+              if (!await _ensureAuthAndProAccess()) {
                 return;
               }
               await _showManualInputDialog(
@@ -852,7 +944,7 @@ class _CameraPageState extends State<CameraPage> {
               );
             },
             icon: const Icon(Icons.edit_note_rounded),
-            label: Text(isProUser ? '手动输入配料' : '手动输入配料 · Pro'),
+            label: const Text('手动输入配料'),
             style: OutlinedButton.styleFrom(
               foregroundColor: const Color(0xFF2F7D32),
               side: const BorderSide(color: Color(0xFFD6E5D8)),
@@ -941,6 +1033,10 @@ class _CameraPageState extends State<CameraPage> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
+                          if (!_isSignedIn) ...[
+                            _buildLoginBanner(),
+                            const SizedBox(height: 14),
+                          ],
                           if (isWide)
                             Row(
                               crossAxisAlignment: CrossAxisAlignment.start,

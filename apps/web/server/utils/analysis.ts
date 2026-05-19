@@ -354,14 +354,14 @@ export async function analyzeQuickMetrics(
   "overallAssessment": "一句话总体评价",
   "compliance": {"status": "合规/不合规/待确认", "description": "简述"},
   "processing": {"level": "轻/中/高", "score": 1-5},
-  "recommendations": "一句建议，要针对当前用户健康情况（如果有）"
+  "recommendations": "2-3句个性化建议，结合用户健康情况（如有），点明哪些配料/成分对'你'具体意味着什么，给出明确的避免/适量/可选的判断"
 }`
 
   const healthPrompt = buildUserHealthContextPrompt(userHealthProfile)
   const userPrompt = `快速评估产品 "${productName}" 的配料：${ingredients.join(', ')}。
 ${healthPrompt || '无额外用户健康信息。'}
 如果未提供商品名称，请根据配料判断并返回一个准确、克制的食品名称或品类。
-在 overallAssessment 和 recommendations 中体现个性化提醒（针对当前用户的健康情况如果有，如控糖、控盐等）。只返回 JSON，无其他文本。`
+在 overallAssessment 和 recommendations 中体现个性化提醒：如果提供了用户健康信息，recommendations 要具体到'你的XX情况'，点明哪些配料对你影响最大。只返回 JSON，无其他文本。`
 
   const { signal, clear } = createTimeoutSignal()
 
@@ -374,7 +374,7 @@ ${healthPrompt || '无额外用户健康信息。'}
         { role: 'user', content: userPrompt }
       ],
       0.2,
-      400,
+      600,
       true  // 启用 JSON 模式
     )
 
@@ -530,7 +530,7 @@ ${healthPrompt || ''}
         { role: 'user', content: userPrompt }
       ],
       0.3,
-      2000,
+      2500,
       false
     )
 

@@ -1,5 +1,8 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/analysis_history_item.dart';
 import '../models/user_health_profile.dart';
@@ -33,6 +36,7 @@ class _ProfilePageState extends State<ProfilePage> {
   int _analysisCount = 0;
   int _healthyFoodCount = 0;
   int _attentionFoodCount = 0;
+  StreamSubscription<AuthState>? _authSubscription;
 
   @override
   void initState() {
@@ -40,18 +44,26 @@ class _ProfilePageState extends State<ProfilePage> {
     _subscriptionManager.addListener(_handleSubscriptionChanged);
     _loadSettings();
     _loadStatistics();
-    _subscriptionManager.reloadSubscriptionStatus();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _subscriptionManager.reloadSubscriptionStatus();
+    });
+    _authSubscription = Supabase.instance.client.auth.onAuthStateChange.listen((_) {
+      if (mounted) setState(() {});
+    });
   }
 
   @override
   void dispose() {
+    _authSubscription?.cancel();
     _subscriptionManager.removeListener(_handleSubscriptionChanged);
     super.dispose();
   }
 
   void _handleSubscriptionChanged() {
     if (!mounted) return;
-    setState(() {});
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) setState(() {});
+    });
   }
 
   Future<void> _loadSettings() async {
@@ -108,13 +120,28 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   Future<void> _signOut() async {
-    await _authService.signOut();
-    if (!mounted) return;
-    Navigator.pushAndRemoveUntil(
-      context,
-      MaterialPageRoute(builder: (context) => const LoginPage()),
-      (route) => false,
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('退出登录'),
+        content: const Text('退出后需要重新登录才能使用分析功能。确定退出吗？'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            style: FilledButton.styleFrom(backgroundColor: const Color(0xFFC73535)),
+            child: const Text('退出'),
+          ),
+        ],
+      ),
     );
+
+    if (confirmed != true || !mounted) return;
+    await _authService.signOut();
+    if (mounted) setState(() {});
   }
 
   String _healthSummary() {
@@ -689,7 +716,76 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   @override
+  bool get _isSignedIn => _authService.isSignedIn;
+
+  Future<void> _navigateToLogin() async {
+    final loggedIn = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(builder: (context) => const LoginPage()),
+    );
+    if (loggedIn == true && mounted) {
+      setState(() {});
+    }
+  }
+
+  Widget _buildLoginPrompt() {
+    return Center(
+      child: Container(
+        padding: const EdgeInsets.all(32),
+        margin: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: const Color(0xFFDEE9E0)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 72,
+              height: 72,
+              decoration: BoxDecoration(
+                color: const Color(0xFFEAF8F1),
+                borderRadius: BorderRadius.circular(24),
+              ),
+              child: const Icon(Icons.person_outline, size: 36, color: Color(0xFF2F7D32)),
+            ),
+            const SizedBox(height: 18),
+            const Text(
+              '登录后使用完整功能',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: Color(0xFF1F2937)),
+            ),
+            const SizedBox(height: 10),
+            const Text(
+              '登录账号后可以查看分析历史、管理健康画像、获得个性化饮食提醒。',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 13, height: 1.7, color: Color(0xFF6B7280)),
+            ),
+            const SizedBox(height: 24),
+            FilledButton.icon(
+              onPressed: _navigateToLogin,
+              icon: const Icon(Icons.login_rounded, size: 18),
+              label: const Text('登录 / 注册'),
+              style: FilledButton.styleFrom(
+                backgroundColor: const Color(0xFF2F7D32),
+                padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget build(BuildContext context) {
+    if (!_isSignedIn) {
+      return Scaffold(
+        backgroundColor: const Color(0xFFF4F8F4),
+        body: _buildLoginPrompt(),
+      );
+    }
+
     return Scaffold(
       backgroundColor: const Color(0xFFF4F8F4),
       body: LayoutBuilder(

@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'camera_page.dart';
 import 'history_page.dart';
@@ -15,12 +18,31 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   int _currentIndex = 0;
   final _historyKey = GlobalKey<HistoryPageState>();
+  StreamSubscription<AuthState>? _authSubscription;
 
   late final List<Widget> _pages = [
     const CameraPage(),
     HistoryPage(key: _historyKey),
     const ProfilePage(),
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    _authSubscription = Supabase.instance.client.auth.onAuthStateChange.listen((data) {
+      if ((data.event == AuthChangeEvent.signedOut ||
+           data.event == AuthChangeEvent.signedIn) &&
+          mounted) {
+        setState(() {});
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _authSubscription?.cancel();
+    super.dispose();
+  }
 
   static const _titles = ['开始分析', '历史记录', '我的'];
 

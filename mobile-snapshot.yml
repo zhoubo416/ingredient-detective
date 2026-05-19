@@ -1,0 +1,277 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e3]:
+    - banner [ref=e4]:
+      - generic [ref=e5]:
+        - link "配 Ingredient Detective 配料侦探" [ref=e6] [cursor=pointer]:
+          - /url: /
+          - generic [ref=e7]: 配
+          - generic [ref=e8]:
+            - paragraph [ref=e9]: Ingredient Detective
+            - paragraph [ref=e10]: 配料侦探
+        - navigation [ref=e11]:
+          - link "产品首页" [ref=e12] [cursor=pointer]:
+            - /url: /
+          - link "下载 App" [ref=e13] [cursor=pointer]:
+            - /url: /download
+          - link "登录" [ref=e14] [cursor=pointer]:
+            - /url: /login
+    - main [ref=e15]:
+      - generic [ref=e16]:
+        - generic [ref=e19]:
+          - generic [ref=e20]:
+            - generic [ref=e21]: AI 配料分析产品
+            - generic [ref=e23]:
+              - heading "拍一张配料表， 立刻知道这东西适不适合你吃" [level=1] [ref=e24]
+              - paragraph [ref=e25]: 配料侦探把 OCR、配料解析、健康判断和历史追踪整合在一个产品里。 用户上传食品包装图后，几秒内就能得到可执行的购买建议，而不是一堆看不懂的术语。
+            - generic [ref=e26]:
+              - link "立即上传配料表" [ref=e27] [cursor=pointer]:
+                - /url: /login
+                - text: 立即上传配料表
+              - link "查看历史记录" [ref=e29] [cursor=pointer]:
+                - /url: /dashboard/history
+            - generic [ref=e30]:
+              - generic [ref=e31]: 看不懂配料
+              - generic [ref=e32]: 不知道该不该买
+              - generic [ref=e33]: 担心糖、盐、添加剂
+            - generic [ref=e34]:
+              - generic [ref=e35]:
+                - strong [ref=e36]: 2-5 秒
+                - paragraph [ref=e37]: 快速返回首屏结论
+              - generic [ref=e38]:
+                - strong [ref=e39]: 逐项解释
+                - paragraph [ref=e40]: 每个配料的作用都说清楚
+              - generic [ref=e41]:
+                - strong [ref=e42]: 长期追踪
+                - paragraph [ref=e43]: 自动归档，支持历史复盘
+          - generic [ref=e44]:
+            - generic [ref=e45]:
+              - paragraph [ref=e46]: Analysis Preview
+              - generic [ref=e47]: 实时示例
+            - generic [ref=e48]:
+              - paragraph [ref=e49]: 健康评分
+              - paragraph [ref=e50]: "5.0"
+              - paragraph [ref=e51]: 风味酸乳
+              - paragraph [ref=e52]: 含糖和多种添加剂，适合作为偶尔零食，不建议高频饮用。
+            - generic [ref=e53]:
+              - generic [ref=e54]:
+                - paragraph [ref=e55]: 白砂糖
+                - paragraph [ref=e56]: 提升口感，但会明显抬高糖负担，控糖人群要谨慎。
+              - generic [ref=e57]:
+                - paragraph [ref=e58]: 果胶
+                - paragraph [ref=e59]: 用于稳定质地，本身风险较低，主要反映产品加工属性。
+              - generic [ref=e60]:
+                - paragraph [ref=e61]: 个性化提醒
+                - paragraph [ref=e62]: 如果你有控糖需求或正在减脂，这类产品不适合日常高频摄入。
+        - generic [ref=e64]:
+          - generic [ref=e65]:
+            - generic [ref=e66]: 产品价值
+            - heading "不是给专业人士看的工具，而是给真实消费者的决策助手" [level=2] [ref=e68]
+            - paragraph [ref=e69]: 你不需要懂食品工程，也不需要逐条查配料。拍照后就能知道风险点、加工度和是否适合自己。
+          - generic [ref=e70]:
+            - generic [ref=e71]:
+              - heading "控糖或减脂人群" [level=3] [ref=e76]
+              - paragraph [ref=e78]: 一眼识别高糖、高能量、风味型乳制品等“看起来健康”的陷阱。
+            - generic [ref=e79]:
+              - heading "有孩子的家庭" [level=3] [ref=e84]
+              - paragraph [ref=e86]: 买零食、酸奶、早餐食品时，快速判断配料是否复杂、是否含过多添加剂。
+            - generic [ref=e87]:
+              - heading "慢病和饮食管理" [level=3] [ref=e92]
+              - paragraph [ref=e94]: 对高盐、高糖、重加工食品更敏感，能结合个人情况给出更谨慎的提醒。
+            - generic [ref=e95]:
+              - heading "长期记录与复盘" [level=3] [ref=e100]
+              - paragraph [ref=e102]: 把每次分析自动沉淀为历史记录，对比同类产品，建立自己的饮食判断标准。
+          - generic [ref=e103]:
+            - generic [ref=e104]:
+              - generic [ref=e105]: 为什么更可信
+              - heading "用户真正需要的不是配料表翻译，而是购买建议" [level=3] [ref=e107]
+            - generic [ref=e108]:
+              - generic [ref=e109]:
+                - paragraph [ref=e110]: 不是只识别文字
+                - paragraph [ref=e111]: 重点不在 OCR 本身，而在“识别之后能给你什么判断”。
+              - generic [ref=e112]:
+                - paragraph [ref=e113]: 逐项解释配料作用
+                - paragraph [ref=e114]: 每个配料都给出作用和影响，不再只是简单罗列名称。
+              - generic [ref=e115]:
+                - paragraph [ref=e116]: 支持历史追踪
+                - paragraph [ref=e117]: 同一账号下自动留存记录，方便长期比较和复盘。
+        - generic [ref=e119]:
+          - generic [ref=e120]:
+            - generic [ref=e121]: 产品展示
+            - heading "页面不是空讲概念，而是直接展示产品实际交付结果" [level=2] [ref=e123]
+            - paragraph [ref=e124]: 首页应该先把结果长什么样讲清楚。下面这组示意，展示了用户最关心的两件事：分析结论和历史复盘。
+          - generic [ref=e125]:
+            - generic [ref=e126]:
+              - generic [ref=e127]:
+                - generic [ref=e128]:
+                  - paragraph [ref=e129]: Screen 01
+                  - heading "分析结果页" [level=3] [ref=e130]
+                - generic [ref=e131]: 首屏结论 + 配料解释
+              - generic [ref=e132]:
+                - generic [ref=e134]:
+                  - generic [ref=e135]:
+                    - generic [ref=e136]:
+                      - paragraph [ref=e137]: Analysis
+                      - paragraph [ref=e138]: 风味酸乳
+                    - generic [ref=e139]: 5.0 分
+                  - generic [ref=e140]:
+                    - paragraph [ref=e141]: 总体判断
+                    - paragraph [ref=e142]: 含糖和多种添加剂，偶尔食用可以，不适合作为日常高频乳制品。
+                  - generic [ref=e143]:
+                    - generic [ref=e144]:
+                      - generic [ref=e145]:
+                        - paragraph [ref=e146]: 白砂糖
+                        - generic [ref=e147]: 注意
+                      - generic [ref=e149]:
+                        - generic [ref=e150]:
+                          - generic [ref=e151]: 作用：
+                          - generic [ref=e152]: 提供甜味和能量
+                        - generic [ref=e153]:
+                          - generic [ref=e154]: 安全：
+                          - generic [ref=e155]: 常见甜味剂，需控制量
+                        - generic [ref=e156]:
+                          - generic [ref=e157]: ⚠️：
+                          - generic [ref=e158]: 过量摄入不利健康
+                    - generic [ref=e159]:
+                      - generic [ref=e160]:
+                        - paragraph [ref=e161]: 果胶
+                        - generic [ref=e162]: 合规
+                      - generic [ref=e164]:
+                        - generic [ref=e165]:
+                          - generic [ref=e166]: 作用：
+                          - generic [ref=e167]: 增稠剂、胶凝剂
+                        - generic [ref=e168]:
+                          - generic [ref=e169]: 安全：
+                          - generic [ref=e170]: 天然提取物，安全
+                    - generic [ref=e171]:
+                      - generic [ref=e172]:
+                        - paragraph [ref=e173]: 食用香精
+                        - generic [ref=e174]: 合规
+                      - generic [ref=e176]:
+                        - generic [ref=e177]:
+                          - generic [ref=e178]: 作用：
+                          - generic [ref=e179]: 增强产品风味
+                        - generic [ref=e180]:
+                          - generic [ref=e181]: 安全：
+                          - generic [ref=e182]: 人工调配，合规使用安全
+                - generic [ref=e183]:
+                  - generic [ref=e184]:
+                    - paragraph [ref=e185]: 上传图片
+                    - paragraph [ref=e186]: 拍照上传食品包装图，系统自动识别配料表。
+                  - generic [ref=e187]:
+                    - paragraph [ref=e188]: 生成结论
+                    - paragraph [ref=e189]: 快速给出健康分、总体判断和关键风险点。
+                  - generic [ref=e190]:
+                    - paragraph [ref=e191]: 沉淀历史
+                    - paragraph [ref=e192]: 结果自动进入历史记录，方便后续检索和比较。
+            - generic [ref=e193]:
+              - generic [ref=e194]:
+                - generic [ref=e195]:
+                  - paragraph [ref=e196]: Screen 02
+                  - heading "历史记录页" [level=3] [ref=e197]
+                - generic [ref=e198]: 可检索 / 可回看 / 可对比
+              - generic [ref=e199]:
+                - generic [ref=e201]:
+                  - generic [ref=e202]:
+                    - paragraph [ref=e203]: 低糖酸奶
+                    - paragraph [ref=e204]: 白砂糖、果胶、乳清蛋白粉
+                  - generic [ref=e205]: "7.4"
+                - generic [ref=e206]:
+                  - generic [ref=e207]:
+                    - generic [ref=e208]:
+                      - paragraph [ref=e209]: 风味酸乳
+                      - paragraph [ref=e210]: 白砂糖、果胶、食用香精
+                    - generic [ref=e211]: "5.0"
+                  - button "▶ 展开配料" [ref=e212]
+                - generic [ref=e214]:
+                  - generic [ref=e215]:
+                    - paragraph [ref=e216]: 儿童乳饮品
+                    - paragraph [ref=e217]: 葡萄糖浆、香精、稳定剂
+                  - generic [ref=e218]: "3.8"
+              - generic [ref=e219]:
+                - paragraph [ref=e220]: 长期价值不止在单次识别，而在“你吃过什么、以后还想不想再买”。
+                - paragraph [ref=e221]: 历史记录会让用户在超市、便利店或复购场景里真正回来使用，而不是一次性体验后流失。
+        - generic [ref=e223]:
+          - generic [ref=e224]:
+            - generic [ref=e225]: 用户场景
+            - heading "当用户真的在买东西时，这个产品才有意义" [level=2] [ref=e227]
+            - paragraph [ref=e228]: 最好的宣传不是抽象口号，而是让访问者一眼看懂“这在我的真实生活里有什么用”。
+          - generic [ref=e229]:
+            - generic [ref=e230]:
+              - generic [ref=e231]: 饮食管理
+              - heading "控糖用户" [level=3] [ref=e232]
+              - paragraph [ref=e233]: 不再只看“低脂”“高钙”这些包装文案，而是直接判断糖和添加剂负担。
+            - generic [ref=e234]:
+              - generic [ref=e235]: 家庭决策
+              - heading "有孩子的家庭" [level=3] [ref=e236]
+              - paragraph [ref=e237]: 买零食和早餐奶时，能更快过滤掉配料复杂、甜味过重的产品。
+            - generic [ref=e238]:
+              - generic [ref=e239]: 长期使用
+              - heading "注重复购的人" [level=3] [ref=e240]
+              - paragraph [ref=e241]: 历史记录帮助对比同类商品，减少“每次都重新查一遍”的成本。
+          - generic [ref=e242]:
+            - generic [ref=e243]:
+              - paragraph [ref=e244]: “以前我只能拍照识别文字，现在终于能直接看到“适不适合我吃”。”
+              - paragraph [ref=e245]: 早期体验用户 A
+            - generic [ref=e246]:
+              - paragraph [ref=e247]: “历史记录很有用，买酸奶和零食的时候可以快速对比之前查过的产品。”
+              - paragraph [ref=e248]: 早期体验用户 B
+            - generic [ref=e249]:
+              - paragraph [ref=e250]: “这个产品真正有价值的地方，是把配料表变成了购买决策。”
+              - paragraph [ref=e251]: 产品观察反馈
+        - generic [ref=e254]:
+          - generic [ref=e255]:
+            - generic [ref=e256]: 产品亮点
+            - heading "一次分析，不止告诉你\"有什么\"，还告诉你\"意味着什么\"" [level=2] [ref=e258]
+            - generic [ref=e259]:
+              - generic [ref=e260]:
+                - paragraph [ref=e261]: 识别速度
+                - paragraph [ref=e262]: 几秒内拿到首屏结论
+              - generic [ref=e263]:
+                - paragraph [ref=e264]: 内容深度
+                - paragraph [ref=e265]: 逐项解释配料作用与风险
+              - generic [ref=e266]:
+                - paragraph [ref=e267]: 个性化提醒
+                - paragraph [ref=e268]: 结合你的健康情况给出建议
+              - generic [ref=e269]:
+                - paragraph [ref=e270]: 长期价值
+                - paragraph [ref=e271]: 历史记录可检索、可持续复盘
+          - generic [ref=e272]:
+            - generic [ref=e273]: 适合宣传转化
+            - heading "把\"看不懂配料表\"变成一个能持续使用的产品体验" [level=2] [ref=e275]
+            - paragraph [ref=e276]: 用户第一次因为好奇而上传，第二次会因为历史记录和个性化提醒继续回来。 这比单纯做一个 OCR 工具更有产品价值。
+            - generic [ref=e277]:
+              - generic [ref=e278]: 1. 拍照上传配料表
+              - generic [ref=e279]: 2. 获得健康判断与配料解释
+              - generic [ref=e280]: 3. 在历史页持续追踪和对比
+            - link "立即体验产品" [ref=e282] [cursor=pointer]:
+              - /url: /login
+              - text: 立即体验产品
+    - contentinfo [ref=e284]:
+      - generic [ref=e285]:
+        - generic [ref=e286]:
+          - paragraph [ref=e287]: 配料侦探 · 拍照看懂配料表，快速获得健康建议。
+          - generic [ref=e288]:
+            - generic [ref=e289]: Nuxt
+            - generic [ref=e290]: Supabase
+            - generic [ref=e291]: OCR + AI
+        - generic [ref=e292]:
+          - link "隐私政策" [ref=e293] [cursor=pointer]:
+            - /url: /privacy-policy
+          - link "用户协议" [ref=e294] [cursor=pointer]:
+            - /url: /terms
+          - link "备案与合规说明" [ref=e295] [cursor=pointer]:
+            - /url: /compliance
+          - link "鲁ICP备2026019011号-1" [ref=e296] [cursor=pointer]:
+            - /url: https://beian.miit.gov.cn/
+  - region "Notifications (F8)":
+    - list
+  - generic:
+    - img
+  - generic [ref=e297]:
+    - button "Toggle Nuxt DevTools" [ref=e298] [cursor=pointer]:
+      - img [ref=e299]
+    - generic "Page load time" [ref=e302]:
+      - generic [ref=e303]: "53"
+      - generic [ref=e304]: ms
+    - button "Toggle Component Inspector" [ref=e306] [cursor=pointer]:
+      - img [ref=e307]

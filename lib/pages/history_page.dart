@@ -1,8 +1,13 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/analysis_history_item.dart';
+import '../services/auth_service.dart';
 import '../services/backend_api_service.dart';
 import 'analysis_result_page.dart';
+import 'login_page.dart';
 
 class HistoryPage extends StatefulWidget {
   const HistoryPage({super.key});
@@ -13,9 +18,13 @@ class HistoryPage extends StatefulWidget {
 
 class HistoryPageState extends State<HistoryPage> {
   final BackendApiService _backendApiService = BackendApiService();
+  final AuthService _authService = AuthService();
 
   List<AnalysisHistoryItem> _history = [];
   bool _isLoading = true;
+  StreamSubscription<AuthState>? _authSubscription;
+
+  bool get _isSignedIn => _authService.isSignedIn;
 
   /// Called by parent to refresh history when tab becomes visible.
   void refresh() => _loadHistory();
@@ -24,9 +33,23 @@ class HistoryPageState extends State<HistoryPage> {
   void initState() {
     super.initState();
     _loadHistory();
+    _authSubscription = Supabase.instance.client.auth.onAuthStateChange.listen((_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _authSubscription?.cancel();
+    super.dispose();
   }
 
   Future<void> _loadHistory() async {
+    if (!_isSignedIn) {
+      setState(() => _isLoading = false);
+      return;
+    }
+
     try {
       final history = await _backendApiService.fetchHistory();
       if (!mounted) return;
@@ -42,6 +65,17 @@ class HistoryPageState extends State<HistoryPage> {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('加载历史失败: $e')));
+    }
+  }
+
+  Future<void> _navigateToLogin() async {
+    final loggedIn = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(builder: (context) => const LoginPage()),
+    );
+    if (loggedIn == true && mounted) {
+      setState(() => _isLoading = true);
+      _loadHistory();
     }
   }
 
@@ -497,12 +531,69 @@ class HistoryPageState extends State<HistoryPage> {
     );
   }
 
+  Widget _buildLoginPrompt() {
+    return Center(
+      child: Container(
+        padding: const EdgeInsets.all(32),
+        margin: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: const Color(0xFFDEE9E0)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 72,
+              height: 72,
+              decoration: BoxDecoration(
+                color: const Color(0xFFEAF8F1),
+                borderRadius: BorderRadius.circular(24),
+              ),
+              child: const Icon(Icons.history_rounded, size: 36, color: Color(0xFF2F7D32)),
+            ),
+            const SizedBox(height: 18),
+            const Text(
+              '登录后查看分析历史',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: Color(0xFF1F2937)),
+            ),
+            const SizedBox(height: 10),
+            const Text(
+              '登录账号后，你的每次配料分析都会自动保存，方便随时回看和对比。',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 13, height: 1.7, color: Color(0xFF6B7280)),
+            ),
+            const SizedBox(height: 24),
+            FilledButton.icon(
+              onPressed: _navigateToLogin,
+              icon: const Icon(Icons.login_rounded, size: 18),
+              label: const Text('登录 / 注册'),
+              style: FilledButton.styleFrom(
+                backgroundColor: const Color(0xFF2F7D32),
+                padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
       return const Scaffold(
         backgroundColor: Color(0xFFF4F8F4),
         body: _HistoryLoadingScaffold(),
+      );
+    }
+
+    if (!_isSignedIn) {
+      return Scaffold(
+        backgroundColor: const Color(0xFFF4F8F4),
+        body: _buildLoginPrompt(),
       );
     }
 

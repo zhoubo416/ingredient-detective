@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'home_page.dart';
-import 'login_page.dart';
 import '../services/auth_service.dart';
 
 class SplashPage extends StatefulWidget {
@@ -20,16 +19,15 @@ class _SplashPageState extends State<SplashPage> {
   }
 
   Future<void> _resolveInitialRoute() async {
+    // 预热 session，有则恢复登录态，无则静默跳过
+    await _authService.hasValidSession();
     await Future.delayed(const Duration(seconds: 1));
-    final hasValidSession = await _authService.hasValidSession();
 
     if (!mounted) return;
 
     Navigator.pushReplacement(
       context,
-      MaterialPageRoute(
-        builder: (context) => hasValidSession ? const HomePage() : const LoginPage(),
-      ),
+      MaterialPageRoute(builder: (context) => const HomePage()),
     );
   }
 

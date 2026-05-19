@@ -24,7 +24,10 @@ class _SubscriptionPageState extends State<SubscriptionPage> {
   }
   
   void _onSubscriptionChanged() {
-    setState(() {});
+    if (!mounted) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) setState(() {});
+    });
   }
   
   @override

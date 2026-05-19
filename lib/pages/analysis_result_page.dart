@@ -296,14 +296,20 @@ class _AnalysisResultPageState extends State<AnalysisResultPage> {
   }
 
   List<String> _actionableAdvices() {
-    final advice = <String>[
-      ..._result.warnings
-          .map((item) => item.trim())
-          .where((item) => item.isNotEmpty),
-    ];
+    final advice = <String>[];
+
+    // 个性化建议优先展示
+    final recommendation = _nonEmptyOrNull(_result.recommendations);
+    if (recommendation != null) {
+      advice.add(recommendation);
+    }
+
+    advice.addAll(_result.warnings
+        .map((item) => item.trim())
+        .where((item) => item.isNotEmpty));
 
     for (final ingredient in _result.ingredients) {
-      if (advice.length >= 4) break;
+      if (advice.length >= 6) break;
       final tone = _ingredientTone(ingredient);
       if (tone.label == '常规') continue;
 
@@ -316,17 +322,12 @@ class _AnalysisResultPageState extends State<AnalysisResultPage> {
       advice.add('${ingredient.ingredientName}: $details');
     }
 
-    final recommendation = _nonEmptyOrNull(_result.recommendations);
-    if (recommendation != null) {
-      advice.add(recommendation);
-    }
-
     final seen = <String>{};
     return advice
         .map((item) => item.trim())
         .where((item) => item.isNotEmpty)
         .where(seen.add)
-        .take(4)
+        .take(6)
         .toList();
   }
 
@@ -510,8 +511,8 @@ class _AnalysisResultPageState extends State<AnalysisResultPage> {
                     child: Text(
                       reminderAdvice,
                       style: const TextStyle(
-                        fontSize: 12,
-                        height: 1.5,
+                        fontSize: 13,
+                        height: 1.55,
                         color: Color(0xFF92400E),
                       ),
                     ),
